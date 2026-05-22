@@ -116,7 +116,11 @@ def seed_data():
     db.session.commit()
     
     # 2. Seed Default Admin User
-    admin = User.query.filter_by(role_id=admin_role.id).first()
+    admin = User.query.filter(
+        (User.role_id == admin_role.id) | 
+        (User.username == 'admin') | 
+        (User.email == 'admin@college.edu')
+    ).first()
     if not admin:
         admin = User(
             username='admin',
@@ -180,7 +184,10 @@ def seed_data():
         print("Campus settings seeded.")
         
     # 5. Seed one Pending/First-login Guest Teacher for verification purposes
-    guest_user = User.query.filter_by(email='guest@college.edu').first()
+    guest_user = User.query.filter(
+        (User.username == 'guest') | 
+        (User.email == 'guest@college.edu')
+    ).first()
     if not guest_user:
         ece_dept = Department.query.filter_by(code='ECE').first()
         
