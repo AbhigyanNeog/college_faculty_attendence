@@ -33,6 +33,22 @@ class Department(db.Model):
             'teacher_count': len(self.teachers)
         }
 
+class ClassSection(db.Model):
+    __tablename__ = 'classes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    
+    # Relationships
+    timetables = db.relationship('Timetable', backref='class_section', cascade="all, delete-orphan", lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'timetable_count': len(self.timetables)
+        }
+
 class User(db.Model):
     __tablename__ = 'users'
     
@@ -107,9 +123,11 @@ class Timetable(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     teacher_profile_id = db.Column(db.Integer, db.ForeignKey('teacher_profiles.id', ondelete='CASCADE'), nullable=False)
+    class_id = db.Column(db.Integer, db.ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
     subject = db.Column(db.String(100), nullable=False)
     classroom = db.Column(db.String(50), nullable=False)
     day_of_week = db.Column(db.Integer, nullable=False) # 0 = Monday, ..., 6 = Sunday
+    period = db.Column(db.String(50), nullable=False, default="Period 1")
     start_time = db.Column(db.Time, nullable=False)
     end_time = db.Column(db.Time, nullable=False)
     
@@ -120,9 +138,12 @@ class Timetable(db.Model):
             'id': self.id,
             'teacher_profile_id': self.teacher_profile_id,
             'teacher_name': self.teacher_profile.name if self.teacher_profile else 'Unknown',
+            'class_id': self.class_id,
+            'class_name': self.class_section.name if self.class_section else 'N/A',
             'subject': self.subject,
             'classroom': self.classroom,
             'day_of_week': self.day_of_week,
+            'period': self.period,
             'start_time': self.start_time.strftime('%H:%M'),
             'end_time': self.end_time.strftime('%H:%M')
         }
@@ -188,6 +209,8 @@ class AttendanceLog(db.Model):
             'timetable_id': self.timetable_id,
             'subject': self.timetable.subject if self.timetable else 'Deleted Class',
             'classroom': self.timetable.classroom if self.timetable else 'N/A',
+            'class_name': self.timetable.class_section.name if (self.timetable and self.timetable.class_section) else 'N/A',
+            'period': self.timetable.period if self.timetable else 'N/A',
             'timestamp': self.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
             'latitude': self.gps_record.latitude if self.gps_record else 0.0,
             'longitude': self.gps_record.longitude if self.gps_record else 0.0,

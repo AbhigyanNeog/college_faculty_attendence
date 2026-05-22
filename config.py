@@ -11,6 +11,9 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(BASE_DIR, "attendance.db")}')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
+    # Timezone settings (standardized to India Standard Time)
+    TIMEZONE = 'Asia/Kolkata'
+    
     # File storage configuration
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB limit

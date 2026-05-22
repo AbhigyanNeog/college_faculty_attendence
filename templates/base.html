@@ -24,6 +24,7 @@
                     <a href="{{ url_for('admin_teachers') }}" class="nav-item {% if request.endpoint == 'admin_teachers' %}active{% endif %}">👤 Teachers</a>
                     <a href="{{ url_for('admin_approvals') }}" class="nav-item {% if request.endpoint == 'admin_approvals' %}active{% endif %}">✅ Approvals</a>
                     <a href="{{ url_for('admin_departments') }}" class="nav-item {% if request.endpoint == 'admin_departments' %}active{% endif %}">🏢 Departments</a>
+                    <a href="{{ url_for('admin_classes') }}" class="nav-item {% if request.endpoint == 'admin_classes' %}active{% endif %}">🏫 Classes</a>
                     <a href="{{ url_for('admin_timetable') }}" class="nav-item {% if request.endpoint == 'admin_timetable' %}active{% endif %}">📅 Schedules</a>
                     <a href="{{ url_for('admin_attendance') }}" class="nav-item {% if request.endpoint == 'admin_attendance' %}active{% endif %}">📷 Log Inspector</a>
                     <a href="{{ url_for('admin_reports') }}" class="nav-item {% if request.endpoint == 'admin_reports' %}active{% endif %}">📈 Analytics</a>
@@ -34,6 +35,7 @@
             </nav>
             
             <div class="user-profile">
+                <span id="liveClock" style="font-family: monospace; font-size: 13px; font-weight: 700; color: var(--color-primary); background: rgba(0,0,0,0.04); padding: 4px 8px; border-radius: 6px; margin-right: 8px;"></span>
                 <span style="font-size: 13px; font-weight: 600; color: var(--color-text-muted);">
                     {{ session.get('name') }} ({{ session.get('role')|capitalize }})
                 </span>
@@ -42,6 +44,7 @@
             </div>
             {% else %}
             <div class="user-profile">
+                <span id="liveClock" style="font-family: monospace; font-size: 13px; font-weight: 700; color: var(--color-primary); background: rgba(0,0,0,0.04); padding: 4px 8px; border-radius: 6px; margin-right: 8px;"></span>
                 <button class="theme-toggle" id="themeToggle">🌙</button>
             </div>
             {% endif %}

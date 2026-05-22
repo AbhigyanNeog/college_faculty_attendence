@@ -1,5 +1,5 @@
 import datetime
-from models import db, Role, Department, User, TeacherProfile, CampusSetting, Timetable
+from models import db, Role, Department, ClassSection, User, TeacherProfile, CampusSetting, Timetable
 
 def init_db(app):
     db.init_app(app)
@@ -50,6 +50,22 @@ def seed_data():
         if not dept:
             dept = Department(name=name, code=code)
             db.session.add(dept)
+            
+    db.session.commit()
+
+    # 3b. Seed Default Classes
+    class_specs = [
+        "Class 11",
+        "Class 12",
+        "BSc 1st Year",
+        "BCA 2nd Year",
+        "MCA"
+    ]
+    for cname in class_specs:
+        csec = ClassSection.query.filter_by(name=cname).first()
+        if not csec:
+            csec = ClassSection(name=cname)
+            db.session.add(csec)
             
     db.session.commit()
     

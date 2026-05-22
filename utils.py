@@ -7,7 +7,15 @@ from PIL import Image
 import io
 import numpy as np
 import cv2
+import datetime
+from zoneinfo import ZoneInfo
 from models import AttendanceLog
+
+def get_local_now(timezone_name='Asia/Kolkata'):
+    """
+    Returns the current timezone-aware localized datetime.
+    """
+    return datetime.datetime.now(ZoneInfo(timezone_name))
 
 # 1. GPS Distance Calculation (Haversine Formula)
 def calculate_distance(lat1, lon1, lat2, lon2):

@@ -27,6 +27,30 @@
                     {% endfor %}
                 </select>
             </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="class_id">Target Class / Course</label>
+                <select class="form-control" id="class_id" name="class_id" required style="background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); padding: 12px; border-radius: 8px;">
+                    <option value="" disabled selected>Select Class...</option>
+                    {% for cls in classes %}
+                        <option value="{{ cls.id }}">{{ cls.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="period">Period / Session</label>
+                <select class="form-control" id="period" name="period" required style="background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); padding: 12px; border-radius: 8px;">
+                    <option value="Period 1">Period 1</option>
+                    <option value="Period 2">Period 2</option>
+                    <option value="Period 3">Period 3</option>
+                    <option value="Period 4">Period 4</option>
+                    <option value="Period 5">Period 5</option>
+                    <option value="Period 6">Period 6</option>
+                    <option value="Period 7">Period 7</option>
+                    <option value="Period 8">Period 8</option>
+                </select>
+            </div>
             
             <div class="form-group" style="margin-top: 12px;">
                 <label class="form-label" for="subject">Subject / Course Name</label>
@@ -77,6 +101,8 @@
                 <thead>
                     <tr>
                         <th>Faculty</th>
+                        <th>Class / Course</th>
+                        <th>Period</th>
                         <th>Subject</th>
                         <th>Classroom</th>
                         <th>Day</th>
@@ -89,6 +115,8 @@
                         {% for tt in timetables %}
                             <tr>
                                 <td style="font-weight: 700;">{{ tt.teacher_name }}</td>
+                                <td style="font-weight: 600;">{{ tt.class_name }}</td>
+                                <td><span class="badge badge-pending" style="font-size: 11px;">{{ tt.period }}</span></td>
                                 <td>{{ tt.subject }}</td>
                                 <td><code>{{ tt.classroom }}</code></td>
                                 <td>
@@ -113,7 +141,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="6" style="text-align: center; color: var(--color-text-muted); padding: 30px;">No timetable slots mapped. Add one on the left.</td>
+                            <td colspan="8" style="text-align: center; color: var(--color-text-muted); padding: 30px;">No timetable slots mapped. Add one on the left.</td>
                         </tr>
                     {% endif %}
                 </tbody>

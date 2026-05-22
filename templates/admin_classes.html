@@ -1,0 +1,76 @@
+    {% extends "base.html" %}
+
+{% block title %}Classes - VeriClass{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Class & Course Management</h2>
+    <p style="color: var(--color-text-muted);">Manage classes, courses, or sections for scheduling timetables.</p>
+</div>
+
+<div class="grid-sidebar">
+    <!-- Add Class Form -->
+    <div class="glass-card" style="padding: 20px; align-self: flex-start;">
+        <h3 style="font-family: var(--font-title); font-size: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px;">
+            ➕ Add Class / Course
+        </h3>
+        
+        <form action="{{ url_for('admin_classes') }}" method="POST">
+            <input type="hidden" name="action" value="add">
+            
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label class="form-label" for="name">Class/Course Name</label>
+                <input class="form-control" type="text" id="name" name="name" placeholder="e.g. BCA 2nd Year, Class 11, MCA" required>
+            </div>
+            
+            <button class="btn btn-primary" type="submit" style="width: 100%;">
+                Create Class 🏫
+            </button>
+        </form>
+    </div>
+
+    <!-- Classes List -->
+    <div class="glass-card" style="padding: 20px;">
+        <h3 style="font-family: var(--font-title); font-size: 16px; margin-bottom: 16px;">🏫 Active College Classes</h3>
+        
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Class Name</th>
+                        <th>Mapped Schedule Slots</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if classes %}
+                        {% for cls in classes %}
+                            <tr>
+                                <td style="font-weight: 600;">{{ cls.name }}</td>
+                                <td>
+                                    <span class="badge badge-pending" style="font-size: 11px;">
+                                        {{ cls.timetables|length }} Slots
+                                    </span>
+                                </td>
+                                <td>
+                                    <form action="{{ url_for('admin_classes') }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this class? Mapped timetable slots will be cascade-deleted.');">
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="class_id" value="{{ cls.id }}">
+                                        <button type="submit" class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;">
+                                            Delete 🗑️
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="3" style="text-align: center; color: var(--color-text-muted); padding: 30px;">No classes created yet.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

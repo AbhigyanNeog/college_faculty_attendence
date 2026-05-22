@@ -18,6 +18,27 @@ document.addEventListener('DOMContentLoaded', () => {
             updateThemeIcon(themeToggleBtn, newTheme);
         });
     }
+
+    // 1b. Live Clock Management (IST timezone)
+    const liveClockEl = document.getElementById('liveClock');
+    if (liveClockEl) {
+        const updateClock = () => {
+            const now = new Date();
+            const options = {
+                timeZone: 'Asia/Kolkata',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric'
+            };
+            liveClockEl.innerText = now.toLocaleString('en-US', options);
+        };
+        updateClock();
+        setInterval(updateClock, 1000);
+    }
 });
 
 function updateThemeIcon(btn, theme) {

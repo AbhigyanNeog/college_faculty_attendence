@@ -3,7 +3,7 @@ import unittest
 import tempfile
 import datetime
 from app import app
-from models import db, Role, Department, User, TeacherProfile, CampusSetting, Timetable, GPSRecord, ImageRecord, AttendanceLog
+from models import db, Role, Department, ClassSection, User, TeacherProfile, CampusSetting, Timetable, GPSRecord, ImageRecord, AttendanceLog
 
 class FacultySystemTestCase(unittest.TestCase):
     
@@ -226,13 +226,19 @@ class FacultySystemTestCase(unittest.TestCase):
             db.session.commit()
             profile_id = profile.id
             
+            # Fetch a class section seeded in database
+            class_sec = ClassSection.query.first()
+            class_id = class_sec.id
+            
         self.login_client('admin', 'admin123')
         response = self.client.post('/admin/timetable', data={
             'action': 'add',
             'teacher_profile_id': str(profile_id),
+            'class_id': str(class_id),
             'subject': 'Software Engineering',
             'classroom': 'Room 303',
             'day_of_week': '1', # Tuesday
+            'period': 'Period 1',
             'start_time': '10:00',
             'end_time': '11:00'
         }, follow_redirects=True)
@@ -242,6 +248,7 @@ class FacultySystemTestCase(unittest.TestCase):
             tt = Timetable.query.filter_by(teacher_profile_id=profile_id, subject='Software Engineering').first()
             self.assertIsNotNone(tt)
             self.assertEqual(tt.classroom, 'Room 303')
+            self.assertEqual(tt.period, 'Period 1')
             self.assertEqual(tt.start_time, datetime.time(10, 0))
             timetable_id = tt.id
             
@@ -254,6 +261,52 @@ class FacultySystemTestCase(unittest.TestCase):
         with app.app_context():
             tt = Timetable.query.filter_by(teacher_profile_id=profile_id, subject='Software Engineering').first()
             self.assertIsNone(tt)
+
+    def test_class_deletion_cascades_timetable(self):
+        self.login_client('admin', 'admin123')
+        # 1. Add a Class
+        self.client.post('/admin/classes', data={
+            'action': 'add',
+            'name': 'BTech 4th Year'
+        }, follow_redirects=True)
+        
+        with app.app_context():
+            csec = ClassSection.query.filter_by(name='BTech 4th Year').first()
+            self.assertIsNotNone(csec)
+            class_id = csec.id
+            teacher = TeacherProfile.query.first()
+            teacher_id = teacher.id
+
+        # 2. Map a Timetable to it
+        self.client.post('/admin/timetable', data={
+            'action': 'add',
+            'teacher_profile_id': str(teacher_id),
+            'class_id': str(class_id),
+            'subject': 'Compiler Design',
+            'classroom': 'Lab 1',
+            'day_of_week': '2',
+            'period': 'Period 3',
+            'start_time': '11:00',
+            'end_time': '12:00'
+        }, follow_redirects=True)
+
+        with app.app_context():
+            tt = Timetable.query.filter_by(class_id=class_id, subject='Compiler Design').first()
+            self.assertIsNotNone(tt)
+            tt_id = tt.id
+
+        # 3. Delete the Class
+        self.client.post('/admin/classes', data={
+            'action': 'delete',
+            'class_id': str(class_id)
+        }, follow_redirects=True)
+
+        # 4. Verify that Class is deleted AND the mapped Timetable slot is also deleted (cascade delete)
+        with app.app_context():
+            csec_check = ClassSection.query.get(class_id)
+            self.assertIsNone(csec_check)
+            tt_check = Timetable.query.get(tt_id)
+            self.assertIsNone(tt_check)
 
 if __name__ == '__main__':
     unittest.main()
