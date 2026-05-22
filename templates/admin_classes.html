@@ -46,17 +46,29 @@
                     {% if classes %}
                         {% for cls in classes %}
                             <tr>
-                                <td style="font-weight: 600;">{{ cls.name }}</td>
+                                <td style="font-weight: 600;">
+                                    <span id="name-display-{{ cls.id }}">{{ cls.name }}</span>
+                                    <form id="rename-form-{{ cls.id }}" action="{{ url_for('admin_classes') }}" method="POST" style="display: none; margin-top: 8px;">
+                                        <input type="hidden" name="action" value="rename">
+                                        <input type="hidden" name="class_id" value="{{ cls.id }}">
+                                        <input class="form-control" type="text" name="name" value="{{ cls.name }}" required style="padding: 6px 10px; font-size: 12px; display: inline-block; width: 180px; margin-right: 8px; vertical-align: middle;">
+                                        <button type="submit" class="btn btn-success" style="padding: 6px 12px; font-size: 11px; display: inline-block; vertical-align: middle;">Save</button>
+                                        <button type="button" class="btn btn-secondary" onclick="toggleRename({{ cls.id }})" style="padding: 6px 12px; font-size: 11px; display: inline-block; background: transparent; color: var(--color-text-muted); vertical-align: middle;">Cancel</button>
+                                    </form>
+                                </td>
                                 <td>
                                     <span class="badge badge-pending" style="font-size: 11px;">
                                         {{ cls.timetables|length }} Slots
                                     </span>
                                 </td>
                                 <td>
-                                    <form action="{{ url_for('admin_classes') }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this class? Mapped timetable slots will be cascade-deleted.');">
+                                    <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px; vertical-align: middle;" onclick="toggleRename({{ cls.id }})">
+                                        Rename ✏️
+                                    </button>
+                                    <form action="{{ url_for('admin_classes') }}" method="POST" style="display: inline; vertical-align: middle;" onsubmit="return confirm('Delete this class? Mapped timetable slots will be cascade-deleted.');">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="class_id" value="{{ cls.id }}">
-                                        <button type="submit" class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;">
+                                        <button type="submit" class="btn btn-danger" style="padding: 4px 8px; font-size: 11px; margin-left: 4px;">
                                             Delete 🗑️
                                         </button>
                                     </form>
@@ -73,4 +85,18 @@
         </div>
     </div>
 </div>
+
+<script>
+function toggleRename(classId) {
+    const display = document.getElementById(`name-display-${classId}`);
+    const form = document.getElementById(`rename-form-${classId}`);
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+        display.style.display = 'none';
+    } else {
+        form.style.display = 'none';
+        display.style.display = 'inline';
+    }
+}
+</script>
 {% endblock %}

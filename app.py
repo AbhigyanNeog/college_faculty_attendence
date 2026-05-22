@@ -2,9 +2,11 @@ import os
 import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from config import Config
-from models import db, Role, Department, ClassSection, User, TeacherProfile, Timetable, GPSRecord, ImageRecord, AttendanceLog, CampusSetting
+from models import db, Role, Department, ClassSection, User, TeacherProfile, Timetable, GPSRecord, ImageRecord, AttendanceLog, CampusSetting, TimetableUploadLog
 from database import init_db
 import utils
+import timetable_parser
+import json
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -744,10 +746,301 @@ def admin_classes():
                 db.session.commit()
                 flash("Class/Course deleted successfully.", "success")
                 
+        elif action == 'rename':
+            class_id = int(request.form.get('class_id'))
+            new_name = request.form.get('name', '').strip()
+            if not new_name:
+                flash("Class name cannot be empty.", "danger")
+            else:
+                existing = ClassSection.query.filter_by(name=new_name).first()
+                if existing:
+                    flash("Class/Course name already exists.", "danger")
+                else:
+                    cls = ClassSection.query.get(class_id)
+                    if cls:
+                        cls.name = new_name
+                        db.session.commit()
+                        flash("Class renamed successfully!", "success")
+                        
         return redirect(url_for('admin_classes'))
         
     classes = ClassSection.query.order_by(ClassSection.name).all()
     return render_template('admin_classes.html', classes=classes)
+
+def validate_timetable_entries(entries, class_id):
+    messages = []
+    
+    # 1. Load active teachers to format names
+    teachers = TeacherProfile.query.filter_by(approval_status='Approved').all()
+    teacher_map = {t.id: t.name for t in teachers}
+    
+    # Load all classes to print warnings nicely
+    classes = ClassSection.query.all()
+    class_map = {c.id: c.name for c in classes}
+    target_class_name = class_map.get(class_id, "Current Class")
+    
+    # 2. Query all existing schedules in the database for other classes
+    existing_slots = Timetable.query.filter(Timetable.class_id != class_id).all()
+    
+    # Parse time strings to datetime.time objects for proposed entries
+    parsed_proposed = []
+    for idx, entry in enumerate(entries):
+        day = int(entry.get('day_of_week', 0))
+        period = entry.get('period', '').strip()
+        subject = entry.get('subject', '').strip()
+        classroom = entry.get('classroom', '').strip()
+        teacher_id = entry.get('teacher_profile_id')
+        teacher_id = int(teacher_id) if (teacher_id and str(teacher_id).isdigit()) else None
+        teacher_name = entry.get('teacher_name', 'Unassigned')
+        
+        start_str = entry.get('start_time', '09:00')
+        end_str = entry.get('end_time', '10:00')
+        
+        try:
+            start_t = datetime.datetime.strptime(start_str, '%H:%M').time()
+            end_t = datetime.datetime.strptime(end_str, '%H:%M').time()
+        except ValueError:
+            try:
+                # Fallback to parse HH:MM:SS
+                start_t = datetime.datetime.strptime(start_str, '%H:%M:%S').time()
+                end_t = datetime.datetime.strptime(end_str, '%H:%M:%S').time()
+            except ValueError:
+                start_t = datetime.time(9, 0)
+                end_t = datetime.time(10, 0)
+                messages.append({
+                    'type': 'error',
+                    'row_index': idx,
+                    'message': f"Slot {idx+1}: Invalid time format '{start_str}' or '{end_str}'."
+                })
+            
+        parsed_proposed.append({
+            'index': idx,
+            'day_of_week': day,
+            'period': period,
+            'subject': subject,
+            'classroom': classroom,
+            'teacher_profile_id': teacher_id,
+            'teacher_name': teacher_name,
+            'start_time': start_t,
+            'end_time': end_t
+        })
+        
+    DAYS_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    
+    # Rule 1: Invalid timings check (start >= end)
+    for p in parsed_proposed:
+        if p['start_time'] >= p['end_time']:
+            messages.append({
+                'type': 'error',
+                'row_index': p['index'],
+                'message': f"Slot {p['index']+1} ({DAYS_NAMES[p['day_of_week']]} {p['period']}): Start time ({p['start_time'].strftime('%H:%M')}) must be before end time ({p['end_time'].strftime('%H:%M')})."
+            })
+            
+    def times_overlap(s1, e1, s2, e2):
+        return s1 < e2 and e1 > s2
+        
+    for i, p1 in enumerate(parsed_proposed):
+        if p1['start_time'] >= p1['end_time']:
+            continue
+            
+        t1_id = p1['teacher_profile_id']
+        room1 = p1['classroom']
+        day1 = p1['day_of_week']
+        start1 = p1['start_time']
+        end1 = p1['end_time']
+        
+        # Rule 5: Missing teacher check
+        if not t1_id:
+            messages.append({
+                'type': 'warning',
+                'row_index': p1['index'],
+                'message': f"Slot {p1['index']+1} ({DAYS_NAMES[day1]} {p1['period']} - {p1['subject']}): No teacher assigned (extracted as '{p1['teacher_name']}')."
+            })
+            
+        # Check against other proposed slots
+        for j in range(i + 1, len(parsed_proposed)):
+            p2 = parsed_proposed[j]
+            if p2['start_time'] >= p2['end_time']:
+                continue
+                
+            if day1 == p2['day_of_week'] and times_overlap(start1, end1, p2['start_time'], p2['end_time']):
+                # Rule 2b: Teacher conflict within same upload
+                if t1_id and t1_id == p2['teacher_profile_id']:
+                    t_name = teacher_map.get(t1_id, p1['teacher_name'])
+                    messages.append({
+                        'type': 'error',
+                        'row_index': p1['index'],
+                        'message': f"Slot {p1['index']+1} and Slot {p2['index']+1} Conflict: Teacher '{t_name}' is double-booked at overlapping times ({start1.strftime('%H:%M')}-{end1.strftime('%H:%M')} vs {p2['start_time'].strftime('%H:%M')}-{p2['end_time'].strftime('%H:%M')}) on {DAYS_NAMES[day1]}."
+                    })
+                # Rule 3b: Room conflict within same upload
+                if room1 and room1.lower() == p2['classroom'].lower() and room1.lower() != "room" and room1.strip():
+                    messages.append({
+                        'type': 'error',
+                        'row_index': p1['index'],
+                        'message': f"Slot {p1['index']+1} and Slot {p2['index']+1} Conflict: Room '{room1}' is double-booked at overlapping times on {DAYS_NAMES[day1]}."
+                    })
+                # Rule 4: Class overlap within same upload
+                messages.append({
+                    'type': 'warning',
+                    'row_index': p1['index'],
+                    'message': f"Slot {p1['index']+1} and Slot {p2['index']+1} Overlap: {target_class_name} has multiple overlapping classes scheduled on {DAYS_NAMES[day1]}."
+                })
+                
+        # Check against existing database slots of OTHER classes
+        for db_slot in existing_slots:
+            if day1 == db_slot.day_of_week and times_overlap(start1, end1, db_slot.start_time, db_slot.end_time):
+                other_class_name = class_map.get(db_slot.class_id, "Another Class")
+                # Rule 2c: Teacher Conflict with database
+                if t1_id and t1_id == db_slot.teacher_profile_id:
+                    t_name = teacher_map.get(t1_id, p1['teacher_name'])
+                    messages.append({
+                        'type': 'error',
+                        'row_index': p1['index'],
+                        'message': f"Slot {p1['index']+1} Conflict: Teacher '{t_name}' is already assigned to {other_class_name} ({db_slot.subject}) in room {db_slot.classroom} at overlapping time ({db_slot.start_time.strftime('%H:%M')}-{db_slot.end_time.strftime('%H:%M')}) on {DAYS_NAMES[day1]}."
+                    })
+                # Rule 3c: Room Conflict with database
+                if room1 and room1.lower() == db_slot.classroom.lower() and room1.lower() != "room" and room1.strip():
+                    messages.append({
+                        'type': 'error',
+                        'row_index': p1['index'],
+                        'message': f"Slot {p1['index']+1} Conflict: Room '{room1}' is already booked by {other_class_name} (Teacher: {db_slot.teacher_profile.name if db_slot.teacher_profile else 'Unknown'}) at overlapping time ({db_slot.start_time.strftime('%H:%M')}-{db_slot.end_time.strftime('%H:%M')}) on {DAYS_NAMES[day1]}."
+                    })
+                    
+    return messages
+
+@app.route('/admin/timetable/upload', methods=['POST'])
+def admin_timetable_upload():
+    if not is_logged_in() or session.get('role') != 'admin':
+        flash("Access Denied.", "danger")
+        return redirect(url_for('login'))
+        
+    class_id_str = request.form.get('class_id')
+    file = request.files.get('timetable_file')
+    
+    if not class_id_str or not file or file.filename == '':
+        flash("Please select a class and select a timetable file.", "danger")
+        return redirect(url_for('admin_timetable'))
+        
+    class_id = int(class_id_str)
+    cls = ClassSection.query.get(class_id)
+    if not cls:
+        flash("Selected class does not exist.", "danger")
+        return redirect(url_for('admin_timetable'))
+        
+    # Save file
+    os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'timetables'), exist_ok=True)
+    filename = file.filename
+    safe_filename = f"class_{class_id}_{int(datetime.datetime.utcnow().timestamp())}_{filename}"
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'timetables', safe_filename)
+    file.save(filepath)
+    
+    # Get active teachers
+    teachers_raw = TeacherProfile.query.filter_by(approval_status='Approved').join(TeacherProfile.user).filter(User.is_active == True).order_by(TeacherProfile.name).all()
+    teachers_list = [{'id': t.id, 'name': t.name} for t in teachers_raw]
+    
+    ext = filename.split('.')[-1]
+    
+    try:
+        parsed_slots = timetable_parser.parse_timetable_file(filepath, ext, teachers_list)
+    except Exception as e:
+        flash(f"Timetable Parse Error: {str(e)}", "danger")
+        return redirect(url_for('admin_timetable'))
+        
+    # Validate parsed slots
+    warnings = validate_timetable_entries(parsed_slots, class_id)
+    
+    # Save log entry
+    log = TimetableUploadLog(
+        class_id=class_id,
+        filename=filename,
+        filepath=f"static/uploads/timetables/{safe_filename}",
+        status="Draft",
+        import_summary=f"Parsed {len(parsed_slots)} entries",
+        validation_errors=json.dumps(warnings)
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    # Render interactive editor page
+    return render_template('admin_timetable_review.html',
+                           class_id=class_id,
+                           class_name=cls.name,
+                           filename=filename,
+                           log_id=log.id,
+                           slots=parsed_slots,
+                           warnings=warnings,
+                           teachers=teachers_raw)
+
+@app.route('/admin/timetable/validate', methods=['POST'])
+def admin_timetable_validate():
+    if not is_logged_in() or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': 'Access Denied'}), 403
+        
+    data = request.json or {}
+    class_id = int(data.get('class_id', 0))
+    entries = data.get('entries', [])
+    
+    warnings = validate_timetable_entries(entries, class_id)
+    return jsonify({'success': True, 'warnings': warnings})
+
+@app.route('/admin/timetable/save-uploaded', methods=['POST'])
+def admin_timetable_save_uploaded():
+    if not is_logged_in() or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': 'Access Denied'}), 403
+        
+    data = request.json or {}
+    class_id = int(data.get('class_id', 0))
+    log_id = int(data.get('log_id', 0))
+    entries = data.get('entries', [])
+    
+    cls = ClassSection.query.get(class_id)
+    if not cls:
+        return jsonify({'success': False, 'message': 'Class does not exist'}), 400
+        
+    log = TimetableUploadLog.query.get(log_id)
+    if not log:
+        return jsonify({'success': False, 'message': 'Upload log does not exist'}), 400
+        
+    for idx, entry in enumerate(entries):
+        teacher_id = entry.get('teacher_profile_id')
+        if not teacher_id or str(teacher_id).lower() == 'null' or str(teacher_id).strip() == '':
+            return jsonify({
+                'success': False, 
+                'message': f"Slot {idx+1} ({entry.get('subject')}) is unassigned. Please map a teacher before saving."
+            }), 400
+            
+    # Delete old slots
+    Timetable.query.filter_by(class_id=class_id).delete()
+    
+    # Save new slots
+    for entry in entries:
+        start_t = datetime.datetime.strptime(entry['start_time'], '%H:%M').time()
+        end_t = datetime.datetime.strptime(entry['end_time'], '%H:%M').time()
+        
+        tt = Timetable(
+            teacher_profile_id=int(entry['teacher_profile_id']),
+            class_id=class_id,
+            subject=entry['subject'].strip(),
+            classroom=entry['classroom'].strip(),
+            day_of_week=int(entry['day_of_week']),
+            period=entry['period'].strip(),
+            start_time=start_t,
+            end_time=end_t
+        )
+        db.session.add(tt)
+        
+    log.status = "Completed"
+    log.import_summary = f"Successfully imported {len(entries)} slots"
+    log.validation_errors = "[]"
+    
+    db.session.commit()
+    
+    flash(f"Timetable for class {cls.name} updated successfully! {len(entries)} periods scheduled.", "success")
+    
+    return jsonify({
+        'success': True,
+        'redirect_url': url_for('admin_timetable')
+    })
 
 @app.route('/admin/timetable', methods=['GET', 'POST'])
 def admin_timetable():
@@ -802,10 +1095,12 @@ def admin_timetable():
     timetables_raw = Timetable.query.join(TeacherProfile).order_by(Timetable.day_of_week, Timetable.start_time).all()
     
     timetables = [tt.to_dict() for tt in timetables_raw]
+    upload_logs = TimetableUploadLog.query.order_by(TimetableUploadLog.uploaded_at.desc()).all()
     return render_template('admin_timetable.html', 
                            teachers=teachers, 
                            classes=classes,
-                           timetables=timetables)
+                           timetables=timetables,
+                           upload_logs=upload_logs)
 
 @app.route('/admin/attendance')
 def admin_attendance():

@@ -1,5 +1,5 @@
 import datetime
-from models import db, Role, Department, ClassSection, User, TeacherProfile, CampusSetting, Timetable
+from models import db, Role, Department, ClassSection, User, TeacherProfile, CampusSetting, Timetable, TimetableUploadLog
 
 def init_db(app):
     db.init_app(app)

@@ -41,6 +41,7 @@ class ClassSection(db.Model):
     
     # Relationships
     timetables = db.relationship('Timetable', backref='class_section', cascade="all, delete-orphan", lazy=True)
+    upload_logs = db.relationship('TimetableUploadLog', backref='class_section', cascade="all, delete-orphan", lazy=True)
 
     def to_dict(self):
         return {
@@ -243,4 +244,29 @@ class CampusSetting(db.Model):
             'radius_meters': self.radius_meters,
             'start_window_before_mins': self.start_window_before_mins,
             'end_window_after_mins': self.end_window_after_mins
+        }
+
+class TimetableUploadLog(db.Model):
+    __tablename__ = 'timetable_upload_logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    class_id = db.Column(db.Integer, db.ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    filepath = db.Column(db.String(255), nullable=False)
+    status = db.Column(db.String(50), nullable=False, default="Draft") # "Draft", "Completed", "Failed"
+    import_summary = db.Column(db.String(255), nullable=True)
+    validation_errors = db.Column(db.Text, nullable=True) # JSON serialized list of strings/dicts
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'class_id': self.class_id,
+            'class_name': self.class_section.name if self.class_section else 'N/A',
+            'filename': self.filename,
+            'filepath': self.filepath,
+            'status': self.status,
+            'import_summary': self.import_summary,
+            'validation_errors': self.validation_errors,
+            'uploaded_at': self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')
         }

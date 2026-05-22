@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+
+{% block title %}Review Timetable - VeriClass{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Review Timetable Upload</h2>
+    <p style="color: var(--color-text-muted);">
+        Reviewing parsed schedule for <strong style="color: var(--color-primary);">{{ class_name }}</strong> from file <code>{{ filename }}</code>.
+    </p>
+</div>
+
+<!-- Validation Messages Banner -->
+<div id="validation-banner" class="glass-card" style="padding: 16px; margin-bottom: 24px; border-left: 4px solid var(--color-primary); display: none;">
+    <h4 style="font-family: var(--font-title); font-size: 15px; font-weight: 700; margin-bottom: 10px;">🛡️ Validation Checks</h4>
+    <div id="validation-messages-list"></div>
+</div>
+
+<div class="glass-card" style="padding: 24px; overflow: visible;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-family: var(--font-title); font-size: 18px; margin-bottom: 0;">📅 Timetable Preview Grid</h3>
+        <button type="button" class="btn btn-secondary" onclick="addNewRow()" style="padding: 8px 14px; font-size: 13px;">
+            ➕ Add Slot Manually
+        </button>
+    </div>
+    
+    <div class="table-responsive" style="overflow-x: auto; max-width: 100%;">
+        <table class="custom-table" id="review-table" style="min-width: 1000px;">
+            <thead>
+                <tr>
+                    <th style="width: 120px;">Day</th>
+                    <th style="width: 110px;">Period</th>
+                    <th style="width: 100px;">Start Time</th>
+                    <th style="width: 100px;">End Time</th>
+                    <th>Subject</th>
+                    <th>Classroom</th>
+                    <th style="width: 260px;">Assigned Teacher</th>
+                    <th style="width: 80px; text-align: center;">Confidence</th>
+                    <th style="width: 70px; text-align: center;">Action</th>
+                </tr>
+            </thead>
+            <tbody id="review-table-body">
+                {% if slots %}
+                    {% for slot in slots %}
+                        <tr class="review-row" data-row-idx="{{ loop.index0 }}">
+                            <td>
+                                <select class="form-control day-select" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;">
+                                    <option value="0" {% if slot.day_of_week == 0 %}selected{% endif %}>Monday</option>
+                                    <option value="1" {% if slot.day_of_week == 1 %}selected{% endif %}>Tuesday</option>
+                                    <option value="2" {% if slot.day_of_week == 2 %}selected{% endif %}>Wednesday</option>
+                                    <option value="3" {% if slot.day_of_week == 3 %}selected{% endif %}>Thursday</option>
+                                    <option value="4" {% if slot.day_of_week == 4 %}selected{% endif %}>Friday</option>
+                                    <option value="5" {% if slot.day_of_week == 5 %}selected{% endif %}>Saturday</option>
+                                    <option value="6" {% if slot.day_of_week == 6 %}selected{% endif %}>Sunday</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select class="form-control period-select" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;">
+                                    <option value="Period 1" {% if slot.period == 'Period 1' %}selected{% endif %}>Period 1</option>
+                                    <option value="Period 2" {% if slot.period == 'Period 2' %}selected{% endif %}>Period 2</option>
+                                    <option value="Period 3" {% if slot.period == 'Period 3' %}selected{% endif %}>Period 3</option>
+                                    <option value="Period 4" {% if slot.period == 'Period 4' %}selected{% endif %}>Period 4</option>
+                                    <option value="Period 5" {% if slot.period == 'Period 5' %}selected{% endif %}>Period 5</option>
+                                    <option value="Period 6" {% if slot.period == 'Period 6' %}selected{% endif %}>Period 6</option>
+                                    <option value="Period 7" {% if slot.period == 'Period 7' %}selected{% endif %}>Period 7</option>
+                                    <option value="Period 8" {% if slot.period == 'Period 8' %}selected{% endif %}>Period 8</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input class="form-control start-time-input" type="time" value="{{ slot.start_time }}" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;" required>
+                            </td>
+                            <td>
+                                <input class="form-control end-time-input" type="time" value="{{ slot.end_time }}" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;" required>
+                            </td>
+                            <td>
+                                <input class="form-control subject-input" type="text" value="{{ slot.subject }}" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;" required>
+                            </td>
+                            <td>
+                                <input class="form-control classroom-input" type="text" value="{{ slot.classroom }}" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;" required>
+                            </td>
+                            <td>
+                                <select class="form-control teacher-select" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px; font-weight: 600; width: 100%;">
+                                    <option value="" {% if not slot.teacher_profile_id %}selected{% endif %}>-- Unassigned (Parsed: '{{ slot.teacher_name }}') --</option>
+                                    {% for teacher in teachers %}
+                                        <option value="{{ teacher.id }}" {% if slot.teacher_profile_id == teacher.id %}selected{% endif %}>
+                                            {{ teacher.name }} ({{ teacher.department.code if teacher.department else 'N/A' }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td style="text-align: center; vertical-align: middle;">
+                                {% if not slot.teacher_profile_id %}
+                                    <span class="badge badge-danger text-confidence" style="font-size: 11px;">0%</span>
+                                {% elif slot.confidence >= 0.8 %}
+                                    <span class="badge badge-success text-confidence" style="font-size: 11px;">{{ (slot.confidence * 100)|int }}%</span>
+                                {% elif slot.confidence >= 0.6 %}
+                                    <span class="badge badge-pending text-confidence" style="font-size: 11px;">{{ (slot.confidence * 100)|int }}%</span>
+                                {% else %}
+                                    <span class="badge badge-danger text-confidence" style="font-size: 11px;">{{ (slot.confidence * 100)|int }}%</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: center; vertical-align: middle;">
+                                <button type="button" class="btn btn-danger" onclick="deleteRow(this)" style="padding: 4px 8px; font-size: 11px;">🗑️</button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr id="empty-row-placeholder">
+                        <td colspan="9" style="text-align: center; color: var(--color-text-muted); padding: 30px;">
+                            No periods detected in this timetable file. Click "Add Slot Manually" above to build a timetable.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border-card); padding-top: 20px;">
+        <a href="{{ url_for('admin_timetable') }}" class="btn btn-secondary">
+            Cancel & Return
+        </a>
+        <button type="button" class="btn btn-success" onclick="saveTimetable()">
+            Save & Apply Schedule 🚀
+        </button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CLASS_ID = {{ class_id }};
+const LOG_ID = {{ log_id }};
+
+// Load teacher profiles in JavaScript for manual row additions
+const TEACHERS_LIST = [
+    {% for teacher in teachers %}
+        { id: {{ teacher.id }}, name: "{{ teacher.name }}", dept: "{{ teacher.department.code if teacher.department else 'N/A' }}" },
+    {% endfor %}
+];
+
+function deleteRow(btn) {
+    const row = btn.closest('tr');
+    row.remove();
+    
+    const tbody = document.getElementById('review-table-body');
+    if (tbody.querySelectorAll('.review-row').length === 0) {
+        // Add placeholder
+        tbody.innerHTML = `
+            <tr id="empty-row-placeholder">
+                <td colspan="9" style="text-align: center; color: var(--color-text-muted); padding: 30px;">
+                    No periods detected in this timetable file. Click "Add Slot Manually" above to build a timetable.
+                </td>
+            </tr>
+        `;
+    }
+    triggerValidation();
+}
+
+function addNewRow() {
+    const placeholder = document.getElementById('empty-row-placeholder');
+    if (placeholder) {
+        placeholder.remove();
+    }
+    
+    const tbody = document.getElementById('review-table-body');
+    const rowIdx = tbody.querySelectorAll('.review-row').length;
+    
+    const newTr = document.createElement('tr');
+    newTr.className = 'review-row';
+    newTr.dataset.rowIdx = rowIdx;
+    
+    let teacherOptions = `<option value="" selected>-- Select Teacher --</option>`;
+    TEACHERS_LIST.forEach(t => {
+        teacherOptions += `<option value="${t.id}">${t.name} (${t.dept})</option>`;
+    });
+    
+    newTr.innerHTML = `
+        <td>
+            <select class="form-control day-select" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;">
+                <option value="0">Monday</option>
+                <option value="1">Tuesday</option>
+                <option value="2">Wednesday</option>
+                <option value="3">Thursday</option>
+                <option value="4">Friday</option>
+                <option value="5">Saturday</option>
+                <option value="6">Sunday</option>
+            </select>
+        </td>
+        <td>
+            <select class="form-control period-select" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;">
+                <option value="Period 1" selected>Period 1</option>
+                <option value="Period 2">Period 2</option>
+                <option value="Period 3">Period 3</option>
+                <option value="Period 4">Period 4</option>
+                <option value="Period 5">Period 5</option>
+                <option value="Period 6">Period 6</option>
+                <option value="Period 7">Period 7</option>
+                <option value="Period 8">Period 8</option>
+            </select>
+        </td>
+        <td>
+            <input class="form-control start-time-input" type="time" value="09:00" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;" required>
+        </td>
+        <td>
+            <input class="form-control end-time-input" type="time" value="10:00" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;" required>
+        </td>
+        <td>
+            <input class="form-control subject-input" type="text" placeholder="e.g. Mathematics" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;" required>
+        </td>
+        <td>
+            <input class="form-control classroom-input" type="text" placeholder="e.g. Room 101" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px;" required>
+        </td>
+        <td>
+            <select class="form-control teacher-select" onchange="triggerValidation()" style="padding: 6px 8px; font-size: 13px; font-weight: 600; width: 100%;">
+                ${teacherOptions}
+            </select>
+        </td>
+        <td style="text-align: center; vertical-align: middle;">
+            <span class="badge badge-success text-confidence" style="font-size: 11px;">100%</span>
+        </td>
+        <td style="text-align: center; vertical-align: middle;">
+            <button type="button" class="btn btn-danger" onclick="deleteRow(this)" style="padding: 4px 8px; font-size: 11px;">🗑️</button>
+        </td>
+    `;
+    
+    tbody.appendChild(newTr);
+    triggerValidation();
+}
+
+function gatherRowData() {
+    const rows = document.querySelectorAll('.review-row');
+    const entries = [];
+    
+    rows.forEach(row => {
+        const day = parseInt(row.querySelector('.day-select').value);
+        const period = row.querySelector('.period-select').value;
+        const startTime = row.querySelector('.start-time-input').value;
+        const endTime = row.querySelector('.end-time-input').value;
+        const subject = row.querySelector('.subject-input').value;
+        const classroom = row.querySelector('.classroom-input').value;
+        
+        const teacherSelect = row.querySelector('.teacher-select');
+        const teacherProfileId = teacherSelect.value;
+        
+        // Find selected teacher name
+        let teacherName = "Unassigned";
+        if (teacherProfileId) {
+            const opt = teacherSelect.options[teacherSelect.selectedIndex];
+            teacherName = opt.text.split('(')[0].trim();
+        }
+        
+        // Get index
+        const index = parseInt(row.dataset.rowIdx);
+        
+        entries.push({
+            day_of_week: day,
+            period: period,
+            start_time: startTime,
+            end_time: endTime,
+            subject: subject,
+            classroom: classroom,
+            teacher_profile_id: teacherProfileId ? parseInt(teacherProfileId) : null,
+            teacher_name: teacherName
+        });
+    });
+    
+    return entries;
+}
+
+let validationTimeout = null;
+
+function triggerValidation() {
+    // Clear previous timeout to debounce requests
+    if (validationTimeout) {
+        clearTimeout(validationTimeout);
+    }
+    
+    validationTimeout = setTimeout(() => {
+        const entries = gatherRowData();
+        
+        // Update confidence indicators
+        const rows = document.querySelectorAll('.review-row');
+        rows.forEach(row => {
+            const val = row.querySelector('.teacher-select').value;
+            const badge = row.querySelector('.text-confidence');
+            if (badge) {
+                if (!val) {
+                    badge.innerText = '0%';
+                    badge.className = 'badge badge-danger text-confidence';
+                } else if (badge.innerText === '0%') {
+                    // Reset if it was 0% but now teacher is chosen manually
+                    badge.innerText = '100%';
+                    badge.className = 'badge badge-success text-confidence';
+                }
+            }
+        });
+        
+        fetch('/admin/timetable/validate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                class_id: CLASS_ID,
+                entries: entries
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderWarnings(data.warnings);
+            }
+        })
+        .catch(err => console.error("Validation error:", err));
+    }, 400); // 400ms debounce
+}
+
+function renderWarnings(warnings) {
+    const banner = document.getElementById('validation-banner');
+    const container = document.getElementById('validation-messages-list');
+    
+    // Clear previous warnings
+    container.innerHTML = '';
+    
+    // Remove warning border-highlights from table rows
+    const rows = document.querySelectorAll('.review-row');
+    rows.forEach(row => {
+        row.style.background = '';
+        row.style.boxShadow = '';
+    });
+    
+    if (!warnings || warnings.length === 0) {
+        banner.style.display = 'none';
+        return;
+    }
+    
+    banner.style.display = 'block';
+    
+    // Group warnings by type
+    warnings.forEach(warn => {
+        const div = document.createElement('div');
+        div.className = warn.type === 'error' ? 'alert-box alert-danger' : 'alert-box alert-warning';
+        div.style.margin = '4px 0';
+        div.style.padding = '8px 12px';
+        div.style.fontSize = '13px';
+        
+        const icon = warn.type === 'error' ? '❌' : '⚠️';
+        div.innerHTML = `<span>${icon} &nbsp; ${warn.message}</span>`;
+        container.appendChild(div);
+        
+        // Highlight corresponding row
+        if (warn.row_index !== undefined && warn.row_index !== null) {
+            const row = document.querySelector(`.review-row[data-row-idx="${warn.row_index}"]`);
+            if (row) {
+                if (warn.type === 'error') {
+                    row.style.background = 'rgba(239, 68, 68, 0.08)';
+                    row.style.boxShadow = 'inset 3px 0 0 var(--color-danger)';
+                } else {
+                    if (row.style.background === '') { // error highlight takes precedence
+                        row.style.background = 'rgba(245, 158, 11, 0.08)';
+                        row.style.boxShadow = 'inset 3px 0 0 var(--color-warning)';
+                    }
+                }
+            }
+        }
+    });
+}
+
+function saveTimetable() {
+    const entries = gatherRowData();
+    
+    if (entries.length === 0) {
+        alert("The timetable has no slots. Add at least one slot before saving.");
+        return;
+    }
+    
+    // Check if any slot is unassigned
+    let hasUnassigned = false;
+    for (let i = 0; i < entries.length; i++) {
+        if (!entries[i].teacher_profile_id) {
+            hasUnassigned = true;
+            break;
+        }
+    }
+    
+    if (hasUnassigned) {
+        alert("Please assign a teacher to all schedule slots before applying the timetable.");
+        return;
+    }
+    
+    // Show validation box status
+    const errorAlerts = document.querySelectorAll('.alert-danger');
+    if (errorAlerts.length > 0) {
+        if (!confirm("There are active hard conflicts (errors) in this schedule mapping. Saving might cause scheduling overlaps. Do you want to proceed anyway?")) {
+            return;
+        }
+    }
+    
+    fetch('/admin/timetable/save-uploaded', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            class_id: CLASS_ID,
+            log_id: LOG_ID,
+            entries: entries
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = data.redirect_url;
+        } else {
+            alert("Error saving timetable: " + data.message);
+        }
+    })
+    .catch(err => {
+        console.error("Save error:", err);
+        alert("A server error occurred while saving the timetable.");
+    });
+}
+
+// Trigger validation on initial load
+document.addEventListener("DOMContentLoaded", () => {
+    triggerValidation();
+});
+</script>
+{% endblock %}
