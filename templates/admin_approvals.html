@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Approvals - VeriClass{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Faculty Approvals</h2>
+    <p style="color: var(--color-text-muted);">Manage self-registered teacher accounts. Approved teachers can sign in and mark attendance.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr; gap: 24px;">
+    <!-- Pending Approvals -->
+    <div class="glass-card" style="padding: 20px;">
+        <h3 style="font-family: var(--font-title); font-size: 18px; margin-bottom: 16px; color: var(--color-warning);">⌛ Pending Approval Requests</h3>
+        
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Employee ID</th>
+                        <th>Name</th>
+                        <th>Username</th>
+                        <th>Department</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Date Registered</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if pending %}
+                        {% for req in pending %}
+                            <tr>
+                                <td style="font-weight: 700;"><code>{{ req.employee_id }}</code></td>
+                                <td style="font-weight: 600;">{{ req.name }}</td>
+                                <td><code>{{ req.user.username if req.user else 'N/A' }}</code></td>
+                                <td>{{ req.department.name if req.department else 'N/A' }}</td>
+                                <td>{{ req.user.email if req.user else 'N/A' }}</td>
+                                <td>{{ req.phone or 'N/A' }}</td>
+                                <td>{{ req.user.created_at.strftime('%Y-%m-%d %H:%M') if req.user else 'N/A' }}</td>
+                                <td>
+                                    <div style="display: flex; gap: 8px;">
+                                        <form action="{{ url_for('admin_approvals') }}" method="POST" style="display: inline;">
+                                            <input type="hidden" name="profile_id" value="{{ req.id }}">
+                                            <input type="hidden" name="decision" value="approve">
+                                            <button type="submit" class="btn btn-success" style="padding: 6px 12px; font-size: 12px; background-color: var(--color-success); border-color: var(--color-success);">
+                                                Approve ✅
+                                            </button>
+                                        </form>
+                                        <form action="{{ url_for('admin_approvals') }}" method="POST" style="display: inline;" onsubmit="return confirm('Reject this registration?');">
+                                            <input type="hidden" name="profile_id" value="{{ req.id }}">
+                                            <input type="hidden" name="decision" value="reject">
+                                            <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px; background-color: var(--color-danger); border-color: var(--color-danger);">
+                                                Reject ❌
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: var(--color-text-muted); padding: 30px;">No pending registration requests.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Past Decisions -->
+    <div class="glass-card" style="padding: 20px;">
+        <h3 style="font-family: var(--font-title); font-size: 18px; margin-bottom: 16px; color: var(--color-text-muted);">📋 Past Registration Actions</h3>
+        
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Employee ID</th>
+                        <th>Name</th>
+                        <th>Department</th>
+                        <th>Email</th>
+                        <th>Decision Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if past_approvals %}
+                        {% for req in past_approvals %}
+                            <tr>
+                                <td><code>{{ req.employee_id }}</code></td>
+                                <td style="font-weight: 600;">{{ req.name }}</td>
+                                <td>{{ req.department.name if req.department else 'N/A' }}</td>
+                                <td>{{ req.user.email if req.user else 'N/A' }}</td>
+                                <td>{{ req.approved_at.strftime('%Y-%m-%d %H:%M') if req.approved_at else 'N/A' }}</td>
+                                <td>
+                                    <span class="badge {% if req.approval_status == 'Approved' %}badge-approved{% else %}badge-rejected{% endif %}" style="font-size: 10px;">
+                                        {{ req.approval_status }}
+                                    </span>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: var(--color-text-muted); padding: 30px;">No history records found.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

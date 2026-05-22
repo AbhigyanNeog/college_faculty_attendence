@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Overview - VeriClass{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+    <div>
+        <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Academic Dashboard</h2>
+        <p style="color: var(--color-text-muted);">Overview of college faculty attendance verification and classroom analytics.</p>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <a href="{{ url_for('admin_teachers') }}" class="btn btn-secondary">👥 Manage Faculty</a>
+        <a href="{{ url_for('admin_timetable') }}" class="btn btn-secondary">📅 Map Timetables</a>
+    </div>
+</div>
+
+<!-- Stats / Metric Counters Grid -->
+<div class="grid-4" style="margin-bottom: 24px;">
+    <!-- Metric Card 1 -->
+    <div class="glass-card metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Classes Scheduled Today</span>
+            <span class="metric-icon">📅</span>
+        </div>
+        <div>
+            <div class="metric-value">{{ stats.scheduled }}</div>
+            <span class="metric-desc">Classes mapped in current timetable</span>
+        </div>
+    </div>
+    
+    <!-- Metric Card 2 -->
+    <div class="glass-card metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Verifications Completed</span>
+            <span class="metric-icon">✅</span>
+        </div>
+        <div>
+            <div class="metric-value">{{ stats.completed }}</div>
+            <span class="metric-desc">Faculty attendance logs received</span>
+        </div>
+    </div>
+
+    <!-- Metric Card 3 -->
+    <div class="glass-card metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Compliance Rate</span>
+            <span class="metric-icon">📈</span>
+        </div>
+        <div>
+            <div class="metric-value">{{ stats.compliance_rate }}%</div>
+            <div class="metric-desc">
+                <div style="width: 100%; height: 4px; background: rgba(0,0,0,0.05); border-radius: 2px; margin-top: 6px; overflow: hidden;">
+                    <div style="width: {{ stats.compliance_rate }}%; height: 100%; background: var(--color-primary); border-radius: 2px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Metric Card 4 -->
+    <div class="glass-card metric-card" style="{% if stats.suspicious > 0 %}border-color: rgba(245,158,11,0.4); background: var(--color-warning-light);{% endif %}">
+        <div class="metric-header">
+            <span class="metric-title" style="{% if stats.suspicious > 0 %}color: var(--color-warning);{% endif %}">Suspicious Flags</span>
+            <span class="metric-icon" style="{% if stats.suspicious > 0 %}background: rgba(245,158,11,0.2); color: var(--color-warning);{% endif %}">⚠️</span>
+        </div>
+        <div>
+            <div class="metric-value" style="{% if stats.suspicious > 0 %}color: var(--color-warning);{% endif %}">{{ stats.suspicious }}</div>
+            <span class="metric-desc">Detections requiring HOD audit</span>
+        </div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <!-- Recent Classroom Submissions -->
+    <div class="glass-card" style="padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-card); padding-bottom: 12px; margin-bottom: 16px;">
+            <h3 style="font-family: var(--font-title); font-size: 16px;">📸 Recent Submissions</h3>
+            <a href="{{ url_for('admin_attendance') }}" style="font-size: 12px; font-weight: 600;">View All logs &rarr;</a>
+        </div>
+        
+        {% if recent_logs %}
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                {% for log in recent_logs %}
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; border-radius: var(--border-radius-md); background: rgba(0,0,0,0.01); border: 1px solid var(--border-card); {% if log.status == 'Suspicious' %}border-left: 4px solid var(--color-warning);{% elif log.status == 'Approved' %}border-left: 4px solid var(--color-success);{% else %}border-left: 4px solid var(--color-danger);{% endif %}">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <img src="{{ url_for('static', filename=log.image_path.replace('static/', '')) }}" style="width: 48px; height: 48px; border-radius: var(--border-radius-sm); object-fit: cover;" alt="Classroom thumb">
+                            <div>
+                                <h4 style="font-size: 13px; font-weight: 700;">{{ log.teacher_name }}</h4>
+                                <p style="font-size: 11px; color: var(--color-text-muted);">{{ log.subject }} &bull; {{ log.classroom }}</p>
+                                <span style="font-size: 10px; color: var(--color-primary); font-weight: 600;">👤 Students: {{ log.student_count }}</span>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="badge {% if log.status == 'Approved' %}badge-approved{% elif log.status == 'Suspicious' %}badge-suspicious{% else %}badge-rejected{% endif %}" style="font-size: 8px; padding: 2px 6px; margin-bottom: 6px;">
+                                {{ log.status }}
+                            </span>
+                            <p style="font-size: 10px; color: var(--color-text-muted);">{{ log.timestamp.split(' ')[1] }}</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p style="color: var(--color-text-muted); font-size: 13px; text-align: center; padding: 40px 0;">No attendance records submitted today yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- System Quick Links / Suspicious Warnings -->
+    <div class="glass-card" style="padding: 20px;">
+        <div style="border-bottom: 1px solid var(--border-card); padding-bottom: 12px; margin-bottom: 16px;">
+            <h3 style="font-family: var(--font-title); font-size: 16px;">⚠️ Flagged Suspicious Incidents</h3>
+        </div>
+        
+        {% if suspicious_logs %}
+            <div style="display: flex; flex-direction: column; gap: 12px; max-height: 380px; overflow-y: auto; padding-right: 4px;">
+                {% for log in suspicious_logs %}
+                    <div style="padding: 14px; border-radius: var(--border-radius-md); border: 1px solid rgba(245,158,11,0.25); background: var(--color-warning-light); display: flex; flex-direction: column; gap: 6px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 12px; font-weight: 700; color: var(--color-warning);">⚠️ {{ log.suspicious_reason }}</span>
+                            <span style="font-size: 10px; color: var(--color-text-muted);">{{ log.timestamp }}</span>
+                        </div>
+                        <p style="font-size: 13px; font-weight: 500; line-height: 1.3;">
+                            <strong>{{ log.teacher_name }}</strong> submitted attendance for class <strong>{{ log.subject }}</strong> in {{ log.classroom }} with a flag.
+                        </p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                            <span style="font-size: 11px; color: var(--color-text-muted);">Distance: {{ log.distance_meters }}m &bull; Students: {{ log.student_count }}</span>
+                            <a href="{{ url_for('admin_attendance') }}?inspect_id={{ log.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 10px;">Audit Incident</a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; border: 1px dashed var(--border-card); border-radius: var(--border-radius-md);">
+                <span style="font-size: 32px; margin-bottom: 8px;">🛡️</span>
+                <p style="font-size: 13px; font-weight: 600; color: var(--color-success);">All Clear! No suspicious incidents today.</p>
+                <p style="font-size: 11px; color: var(--color-text-muted); max-width: 250px; margin-top: 4px;">Camera duplicates and offline GPS positions are operating within safe bounds.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

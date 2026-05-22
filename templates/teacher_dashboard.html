@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Teacher Dashboard - VeriClass{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+    <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">My Classroom Schedules</h2>
+    <p style="color: var(--color-text-muted);">Today is {{ current_date }}. Mark attendance within the allowed verification windows.</p>
+</div>
+
+<div class="grid-sidebar">
+    <!-- Left Sidebar: Schedules list for Today -->
+    <div class="glass-card" style="padding: 20px; margin-bottom: 0;">
+        <h3 style="font-family: var(--font-title); font-size: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px;">📅 Today's Timetable</h3>
+        
+        {% if schedules %}
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+                {% for item in schedules %}
+                    <div style="padding: 14px; border-radius: var(--border-radius-md); background: rgba(0,0,0,0.02); border: 1px solid var(--border-card); border-left: 4px solid {% if item.state == 'marked' %}var(--color-success){% elif item.state == 'active' %}var(--color-primary){% elif item.state == 'missed' %}var(--color-danger){% else %}var(--color-text-muted){% endif %};">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+                            <span style="font-size: 11px; font-weight: 700; color: var(--color-text-muted);">{{ item.classroom }}</span>
+                            <span class="badge {% if item.state == 'marked' %}badge-approved{% elif item.state == 'active' %}badge-pending{% elif item.state == 'missed' %}badge-rejected{% else %}badge-pending{% endif %}" style="font-size: 9px; padding: 3px 8px;">
+                                {{ item.state|upper }}
+                            </span>
+                        </div>
+                        <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 4px;">{{ item.subject }}</h4>
+                        <p style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 8px;">⏰ {{ item.start_time.strftime('%I:%M %p') }} - {{ item.end_time.strftime('%I:%M %p') }}</p>
+                        
+                        {% if item.state == 'active' %}
+                            <a href="?mark_id={{ item.id }}" class="btn btn-primary" style="padding: 6px 12px; font-size: 11px; width: 100%;">Mark Attendance Now</a>
+                        {% elif item.state == 'marked' %}
+                            <div style="font-size: 11px; color: var(--color-success); font-weight: 600; text-align: center; padding: 6px; background: var(--color-success-light); border-radius: var(--border-radius-sm);">
+                                Verified at {{ item.marked_time }}
+                            </div>
+                        {% elif item.state == 'upcoming' %}
+                            <div style="font-size: 11px; color: var(--color-text-muted); text-align: center; padding: 6px; background: rgba(0,0,0,0.05); border-radius: var(--border-radius-sm);">
+                                Window opens at {{ item.window_start }}
+                            </div>
+                        {% else %}
+                            <div style="font-size: 11px; color: var(--color-danger); font-weight: 600; text-align: center; padding: 6px; background: var(--color-danger-light); border-radius: var(--border-radius-sm);">
+                                Class Attendance Missed
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p style="color: var(--color-text-muted); font-size: 13px; text-align: center; padding: 20px 0;">No classes assigned for you today.</p>
+        {% endif %}
+    </div>
+
+    <!-- Right Content Panel: Camera Capture Form -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        {% if active_class_to_mark %}
+            <div class="glass-card" style="margin-bottom: 0;">
+                <h3 style="font-family: var(--font-title); font-size: 18px; margin-bottom: 12px;"> Mark Verification: <span style="color: var(--color-primary);">{{ active_class_to_mark.subject }}</span></h3>
+                <div style="font-size: 13px; color: var(--color-text-muted); display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; background: rgba(0,0,0,0.02); padding: 12px; border-radius: var(--border-radius-md); border: 1px solid var(--border-card);">
+                    <div>🏛️ <strong>Classroom:</strong><br>{{ active_class_to_mark.classroom }}</div>
+                    <div>⏰ <strong>Class Time:</strong><br>{{ active_class_to_mark.start_time.strftime('%I:%M %p') }}</div>
+                    <div>🔔 <strong>Allow Window:</strong><br>{{ window_start_str }} - {{ window_end_str }}</div>
+                </div>
+
+                <form id="attendanceMarkForm">
+                    <input type="hidden" id="timetableId" value="{{ active_class_to_mark.id }}">
+                    
+                    <!-- Geolocation Lock Status -->
+                    <div id="locationStatus" class="status-indicator badge-pending">
+                        ⌛ Initializing GPS tracking...
+                    </div>
+
+                    <!-- Live Camera Box -->
+                    <div class="camera-container">
+                        <div class="camera-overlay">
+                            <span class="live-dot"></span> LIVE CLASSROOM STREAM
+                        </div>
+                        <video id="webcamStream" class="camera-stream" autoplay playsinline style="display: none;"></video>
+                        <canvas id="canvasPreview" class="canvas-preview"></canvas>
+                        
+                        <div class="camera-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                            <span style="font-size: 40px; margin-bottom: 10px;">📸</span>
+                            <p style="font-size: 14px; font-weight: 600; color: var(--color-text-muted); margin-bottom: 15px;">Camera not initialized</p>
+                            <button type="button" id="btnStartCamera" class="btn btn-secondary">Initialize Camera Stream</button>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btnSubmitAttendance" class="btn btn-success" style="width: 100%; padding: 14px; font-size: 15px;" disabled>
+                        Capture Photo & Mark Attendance 🚀
+                    </button>
+                </form>
+            </div>
+            
+            <!-- GPS Mocking Control Panel for Testing -->
+            {% if debug_mock_gps %}
+                <div class="glass-card" style="margin-bottom: 0; border: 1px dashed var(--color-warning); background: var(--color-warning-light);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h4 style="font-family: var(--font-title); font-size: 14px; color: var(--color-warning); font-weight: 700; margin: 0;">🛠️ Debug Location Mock Tool</h4>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="enableMockGPS" style="width: 16px; height: 16px; cursor: pointer;">
+                            <label for="enableMockGPS" style="font-size: 12px; font-weight: 600; cursor: pointer; color: var(--color-warning);">Enable Mock Location</label>
+                        </div>
+                    </div>
+                    <p style="font-size: 11px; color: var(--color-text-muted); margin-bottom: 12px; line-height: 1.4;">
+                        Use this developer panel to simulate various GPS coordinates. Disabling Geolocation in the browser will require activating this mock panel to pass location testing on desktop.
+                    </p>
+                    
+                    <div id="mockGPSSelector" style="display: none;">
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <button type="button" class="btn btn-secondary btn-mock-preset active" data-preset="inside" style="font-size: 11px; padding: 8px; justify-content: flex-start; background: var(--bg-card); border-color: rgba(245,158,11,0.3);">
+                                ✅ Dibrugarh Campus Center (Distance: 0 meters)
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-mock-preset" data-preset="library" style="font-size: 11px; padding: 8px; justify-content: flex-start; background: var(--bg-card); border-color: rgba(245,158,11,0.3);">
+                                ✅ Near Library / Inside Boundary (Distance: ~35 meters)
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-mock-preset" data-preset="outside" style="font-size: 11px; padding: 8px; justify-content: flex-start; background: var(--bg-card); border-color: rgba(245,158,11,0.3);">
+                                ❌ Outside College Campus / Town Center (Distance: ~1050 meters)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+            
+        {% else %}
+            <div class="glass-card" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 40px; text-align: center; margin-bottom: 0;">
+                <span style="font-size: 54px; margin-bottom: 16px;">⏱️</span>
+                <h3 style="font-family: var(--font-title); font-size: 20px; font-weight: 700; margin-bottom: 8px;">No Class Verification Active</h3>
+                <p style="color: var(--color-text-muted); font-size: 14px; max-width: 420px; line-height: 1.5;">
+                    Timetable-based attendance marking is restricted. Select an active class from today's schedule list on the left during its allowed window (from 5 mins before start to 15 mins after start) to proceed.
+                </p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/camera.js') }}"></script>
+{% endblock %}

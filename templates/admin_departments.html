@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Departments - VeriClass{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Department Management</h2>
+    <p style="color: var(--color-text-muted);">Manage academic departments and faculties mapping details.</p>
+</div>
+
+<div class="grid-sidebar">
+    <!-- Add Department Form -->
+    <div class="glass-card" style="padding: 20px; align-self: flex-start;">
+        <h3 style="font-family: var(--font-title); font-size: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px;">
+            ➕ Add Department
+        </h3>
+        
+        <form action="{{ url_for('admin_departments') }}" method="POST">
+            <input type="hidden" name="action" value="add">
+            
+            <div class="form-group">
+                <label class="form-label" for="name">Department Name</label>
+                <input class="form-control" type="text" id="name" name="name" placeholder="e.g. Computer Science & Engineering" required>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label class="form-label" for="code">Code</label>
+                <input class="form-control" type="text" id="code" name="code" placeholder="e.g. CSE" required style="text-transform: uppercase;">
+            </div>
+            
+            <button class="btn btn-primary" type="submit" style="width: 100%;">
+                Create Department 🏢
+            </button>
+        </form>
+    </div>
+
+    <!-- Departments List -->
+    <div class="glass-card" style="padding: 20px;">
+        <h3 style="font-family: var(--font-title); font-size: 16px; margin-bottom: 16px;">🏢 Active College Departments</h3>
+        
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th>Mapped Faculty Count</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if departments %}
+                        {% for dept in departments %}
+                            <tr>
+                                <td style="font-weight: 700;"><code>{{ dept.code }}</code></td>
+                                <td style="font-weight: 600;">{{ dept.name }}</td>
+                                <td>
+                                    <span class="badge badge-pending" style="font-size: 11px;">
+                                        {{ dept.teachers|length }} Teachers
+                                    </span>
+                                </td>
+                                <td>
+                                    <form action="{{ url_for('admin_departments') }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this department? Teachers in this department will be unmapped.');">
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="department_id" value="{{ dept.id }}">
+                                        <button type="submit" class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;">
+                                            Delete 🗑️
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: var(--color-text-muted); padding: 30px;">No departments created yet.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

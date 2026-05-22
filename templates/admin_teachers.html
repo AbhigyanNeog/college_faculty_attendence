@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Faculty - VeriClass{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Faculty Profile Management</h2>
+    <p style="color: var(--color-text-muted);">Manage institutional teacher profiles, approve/reject registrations, and configure access settings.</p>
+</div>
+
+<div class="grid-sidebar">
+    <!-- Add / Edit Teacher Form -->
+    <div class="glass-card" style="padding: 20px; align-self: flex-start;">
+        <h3 style="font-family: var(--font-title); font-size: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px;">
+            {% if edit_teacher %}📝 Edit Faculty Profile{% else %}➕ Register New Teacher{% endif %}
+        </h3>
+        
+        <form action="{{ url_for('admin_teachers') }}" method="POST">
+            {% if edit_teacher %}
+                <input type="hidden" name="action" value="edit">
+                <input type="hidden" name="profile_id" value="{{ edit_teacher.id }}">
+            {% else %}
+                <input type="hidden" name="action" value="add">
+            {% endif %}
+
+            <div class="form-group">
+                <label class="form-label" for="employee_id">Employee ID *</label>
+                <input class="form-control" type="text" id="employee_id" name="employee_id" value="{{ edit_teacher.employee_id if edit_teacher else '' }}" placeholder="e.g. EMP102" required {% if edit_teacher %}readonly{% endif %}>
+            </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="name">Full Name *</label>
+                <input class="form-control" type="text" id="name" name="name" value="{{ edit_teacher.name if edit_teacher else '' }}" placeholder="e.g. Dr. John Doe" required>
+            </div>
+            
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="username">Username *</label>
+                <input class="form-control" type="text" id="username" name="username" value="{{ edit_teacher.username if edit_teacher else '' }}" placeholder="e.g. jdoe" required {% if edit_teacher %}readonly{% endif %}>
+            </div>
+            
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="password">Password</label>
+                <input class="form-control" type="password" id="password" name="password" placeholder="{% if edit_teacher %}Leave blank to keep current{% else %}Blank = Force first-login setup{% endif %}">
+                {% if not edit_teacher %}
+                <small style="color: var(--color-text-muted); font-size: 11px;">If left blank, the teacher must set their password on their first login.</small>
+                {% endif %}
+            </div>
+            
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="department_id">Department *</label>
+                <select class="form-control" id="department_id" name="department_id" required style="background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); padding: 12px; border-radius: 8px;">
+                    <option value="" disabled selected>Select Department</option>
+                    {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if edit_teacher and edit_teacher.department_id == dept.id %}selected{% endif %}>{{ dept.name }} ({{ dept.code }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="email">Email Address *</label>
+                <input class="form-control" type="email" id="email" name="email" value="{{ edit_teacher.user.email if edit_teacher and edit_teacher.user else '' }}" placeholder="e.g. jdoe@college.edu" required>
+            </div>
+
+            <div class="form-group" style="margin-top: 12px; margin-bottom: 24px;">
+                <label class="form-label" for="phone">Phone Number</label>
+                <input class="form-control" type="text" id="phone" name="phone" value="{{ edit_teacher.phone if edit_teacher else '' }}" placeholder="e.g. +91 9876543210">
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" type="submit" style="flex: 1;">
+                    {% if edit_teacher %}Save Changes{% else %}Add Teacher{% endif %}
+                </button>
+                {% if edit_teacher %}
+                    <a href="{{ url_for('admin_teachers') }}" class="btn btn-secondary" style="flex: 1; text-align: center; line-height: 20px;">Cancel</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Teachers List Table -->
+    <div class="glass-card" style="padding: 20px; overflow: hidden;">
+        <h3 style="font-family: var(--font-title); font-size: 16px; margin-bottom: 16px;">👥 Registered Faculty Accounts</h3>
+        
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Emp ID</th>
+                        <th>Name</th>
+                        <th>Dept</th>
+                        <th>Email</th>
+                        <th>Approval</th>
+                        <th>Access Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if teachers %}
+                        {% for teacher in teachers %}
+                            <tr>
+                                <td><code>{{ teacher.employee_id }}</code></td>
+                                <td style="font-weight: 700;">{{ teacher.name }}</td>
+                                <td><code>{{ teacher.department.code if teacher.department else 'N/A' }}</code></td>
+                                <td>{{ teacher.user.email if teacher.user else 'N/A' }}</td>
+                                <td>
+                                    <span class="badge {% if teacher.approval_status == 'Approved' %}badge-approved{% elif teacher.approval_status == 'Pending' %}badge-pending{% else %}badge-rejected{% endif %}" style="font-size: 9px; padding: 2px 8px;">
+                                        {{ teacher.approval_status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if teacher.user %}
+                                        {% if teacher.user.needs_password_setup %}
+                                            <span class="badge badge-pending" style="font-size: 9px; padding: 2px 8px; background-color: var(--color-warning);">Needs Setup</span>
+                                        {% elif teacher.user.is_active %}
+                                            <span class="badge badge-approved" style="font-size: 9px; padding: 2px 8px;">Active</span>
+                                        {% else %}
+                                            <span class="badge badge-rejected" style="font-size: 9px; padding: 2px 8px;">Disabled</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge badge-rejected" style="font-size: 9px; padding: 2px 8px;">No User</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div style="display: flex; gap: 8px;">
+                                        <a href="?edit_id={{ teacher.id }}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;">Edit</a>
+                                        
+                                        {% if teacher.user %}
+                                            <form action="{{ url_for('admin_teachers') }}" method="POST" style="display: inline;" onsubmit="return confirm('Toggle status for this teacher?');">
+                                                <input type="hidden" name="action" value="toggle">
+                                                <input type="hidden" name="profile_id" value="{{ teacher.id }}">
+                                                <button type="submit" class="btn {% if teacher.user.is_active %}btn-danger{% else %}btn-success{% endif %}" style="padding: 4px 8px; font-size: 11px;">
+                                                    {{ 'Deactivate' if teacher.user.is_active else 'Activate' }}
+                                                </button>
+                                            </form>
+                                            
+                                            {% if not teacher.user.needs_password_setup %}
+                                                <form action="{{ url_for('admin_teachers') }}" method="POST" style="display: inline;" onsubmit="return confirm('Force credential reset? This deletes their password and forces first-login setup.');">
+                                                    <input type="hidden" name="action" value="reset">
+                                                    <input type="hidden" name="profile_id" value="{{ teacher.id }}">
+                                                    <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px; background-color: var(--color-warning); color: #000; border-color: var(--color-warning);">
+                                                        Reset Pwd
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                        {% endif %}
+
+                                        <form action="{{ url_for('admin_teachers') }}" method="POST" style="display: inline;" onsubmit="return confirm('PERMANENTLY delete this faculty profile and all their history?');">
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="profile_id" value="{{ teacher.id }}">
+                                            <button type="submit" class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;">
+                                                Delete
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: var(--color-text-muted); padding: 30px;">No teachers registered yet. Add one on the left.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

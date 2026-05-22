@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Schedules - VeriClass{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Timetable Scheduling Mapping</h2>
+    <p style="color: var(--color-text-muted);">Configure academic timetable slots and map them to specific classrooms and faculty members.</p>
+</div>
+
+<div class="grid-sidebar">
+    <!-- Schedule Builder Form -->
+    <div class="glass-card" style="padding: 20px; align-self: flex-start; margin-bottom: 0;">
+        <h3 style="font-family: var(--font-title); font-size: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px;">
+            📅 Map Schedule Slot
+        </h3>
+        
+        <form action="{{ url_for('admin_timetable') }}" method="POST">
+            <input type="hidden" name="action" value="add">
+
+            <div class="form-group">
+                <label class="form-label" for="teacher_profile_id">Assigned Faculty</label>
+                <select class="form-control" id="teacher_profile_id" name="teacher_profile_id" required style="background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); padding: 12px; border-radius: 8px;">
+                    <option value="" disabled selected>Select Teacher...</option>
+                    {% for teacher in teachers %}
+                        <option value="{{ teacher.id }}">{{ teacher.name }} ({{ teacher.department.code if teacher.department else 'N/A' }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="subject">Subject / Course Name</label>
+                <input class="form-control" type="text" id="subject" name="subject" placeholder="e.g. CS-301: DBMS" required>
+            </div>
+            
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="classroom">Classroom / Location</label>
+                <input class="form-control" type="text" id="classroom" name="classroom" placeholder="e.g. Room 202 (Block A)" required>
+            </div>
+            
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="day_of_week">Day of the Week</label>
+                <select class="form-control" id="day_of_week" name="day_of_week" required style="background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); padding: 12px; border-radius: 8px;">
+                    <option value="0">Monday</option>
+                    <option value="1">Tuesday</option>
+                    <option value="2">Wednesday</option>
+                    <option value="3">Thursday</option>
+                    <option value="4">Friday</option>
+                    <option value="5">Saturday</option>
+                    <option value="6">Sunday</option>
+                </select>
+            </div>
+            
+            <div class="grid-2" style="gap: 12px; margin-top: 12px; margin-bottom: 24px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="start_time">Start Time</label>
+                    <input class="form-control" type="time" id="start_time" name="start_time" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="end_time">End Time</label>
+                    <input class="form-control" type="time" id="end_time" name="end_time" required>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary" type="submit" style="width: 100%;">
+                Save Schedule Mapping 📅
+            </button>
+        </form>
+    </div>
+
+    <!-- Mapped Schedules Grid -->
+    <div class="glass-card" style="padding: 20px; overflow: hidden; margin-bottom: 0;">
+        <h3 style="font-family: var(--font-title); font-size: 16px; margin-bottom: 16px;">📅 Active Timetable Database</h3>
+        
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Faculty</th>
+                        <th>Subject</th>
+                        <th>Classroom</th>
+                        <th>Day</th>
+                        <th>Time Window</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if timetables %}
+                        {% for tt in timetables %}
+                            <tr>
+                                <td style="font-weight: 700;">{{ tt.teacher_name }}</td>
+                                <td>{{ tt.subject }}</td>
+                                <td><code>{{ tt.classroom }}</code></td>
+                                <td>
+                                    {% if tt.day_of_week == 0 %}Monday
+                                    {% elif tt.day_of_week == 1 %}Tuesday
+                                    {% elif tt.day_of_week == 2 %}Wednesday
+                                    {% elif tt.day_of_week == 3 %}Thursday
+                                    {% elif tt.day_of_week == 4 %}Friday
+                                    {% elif tt.day_of_week == 5 %}Saturday
+                                    {% elif tt.day_of_week == 6 %}Sunday
+                                    {% endif %}
+                                </td>
+                                <td style="font-family: monospace; font-size: 12px;">{{ tt.start_time }} - {{ tt.end_time }}</td>
+                                <td>
+                                    <form action="{{ url_for('admin_timetable') }}" method="POST" onsubmit="return confirm('Remove this schedule slot?');">
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="timetable_id" value="{{ tt.id }}">
+                                        <button type="submit" class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;">Remove</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: var(--color-text-muted); padding: 30px;">No timetable slots mapped. Add one on the left.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+
+{% block title %}Log Inspector - VeriClass{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Classroom Log Inspector</h2>
+    <p style="color: var(--color-text-muted);">Audit faculty attendance submissions, view live captures, and resolve flagged suspicious activity.</p>
+</div>
+
+<!-- Filters Panel -->
+<div class="glass-card" style="padding: 16px; margin-bottom: 24px;">
+    <form method="GET" action="{{ url_for('admin_attendance') }}" style="display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 14px; align-items: end;">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-size: 11px;">Faculty Member</label>
+            <select class="form-control" name="profile_id">
+                <option value="">All Faculty</option>
+                {% for teacher in teachers %}
+                    <option value="{{ teacher.id }}" {% if selected_profile_id == teacher.id|string %}selected{% endif %}>{{ teacher.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-size: 11px;">Verification Status</label>
+            <select class="form-control" name="status">
+                <option value="">All Statuses</option>
+                <option value="Approved" {% if selected_status == 'Approved' %}selected{% endif %}>Approved Only</option>
+                <option value="Suspicious" {% if selected_status == 'Suspicious' %}selected{% endif %}>Suspicious Only</option>
+                <option value="Rejected" {% if selected_status == 'Rejected' %}selected{% endif %}>Rejected Only</option>
+            </select>
+        </div>
+        
+        <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-size: 11px;">Submission Date</label>
+            <input class="form-control" type="date" name="date" value="{{ selected_date or '' }}">
+        </div>
+        
+        <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-size: 11px;">Audit Flag Type</label>
+            <select class="form-control" name="reason">
+                <option value="">All Flags</option>
+                <option value="Duplicate Image" {% if selected_reason == 'Duplicate Image' %}selected{% endif %}>Duplicate/Reused Image</option>
+                <option value="Low Student Count" {% if selected_reason == 'Low Student Count' %}selected{% endif %}>Low Student Count</option>
+                <option value="Outside Campus" {% if selected_reason == 'Outside Campus' %}selected{% endif %}>Outside Campus Boundaries</option>
+            </select>
+        </div>
+        
+        <div style="display: flex; gap: 8px;">
+            <button type="submit" class="btn btn-primary">🔍 Filter</button>
+            <a href="{{ url_for('admin_attendance') }}" class="btn btn-secondary" style="padding: 10px;">Reset</a>
+        </div>
+    </form>
+</div>
+
+<!-- Logs Database Table -->
+<div class="glass-card" style="padding: 20px; overflow: hidden; margin-bottom: 0;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-family: var(--font-title); font-size: 16px;">📸 Classroom Activity Logs ({{ logs|length }} items)</h3>
+    </div>
+    
+    <div class="table-responsive">
+        <table class="custom-table" id="logsTable">
+            <thead>
+                <tr>
+                    <th>Photo</th>
+                    <th>Faculty</th>
+                    <th>Class / Room</th>
+                    <th>Submission Time</th>
+                    <th>GPS Distance</th>
+                    <th>Students</th>
+                    <th>Status</th>
+                    <th>Flag Reason</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if logs %}
+                    {% for log in logs %}
+                        <tr class="log-row" 
+                            data-id="{{ log.id }}"
+                            data-teacher="{{ log.teacher_name }}"
+                            data-subject="{{ log.subject }}"
+                            data-classroom="{{ log.classroom }}"
+                            data-timestamp="{{ log.timestamp }}"
+                            data-lat="{{ log.latitude }}"
+                            data-lon="{{ log.longitude }}"
+                            data-distance="{{ log.distance_meters }}"
+                            data-orig-img="{{ url_for('static', filename=log.image_path.replace('static/', '')) }}"
+                            data-detected-img="{{ url_for('static', filename=log.image_path.replace('.jpg', '_detected.jpg').replace('static/', '')) }}"
+                            data-student-count="{{ log.student_count }}"
+                            data-hash="{{ log.image_hash }}"
+                            data-status="{{ log.status }}"
+                            data-reason="{{ log.suspicious_reason or 'None' }}"
+                            data-notes="{{ log.verification_notes or '' }}">
+                            <td>
+                                <img src="{{ url_for('static', filename=log.image_path.replace('static/', '')) }}" style="width: 50px; height: 38px; border-radius: var(--border-radius-sm); object-fit: cover; border: 1px solid var(--border-card);" alt="Thumb">
+                            </td>
+                            <td style="font-weight: 700;">{{ log.teacher_name }}</td>
+                            <td>{{ log.subject }}<br><span style="font-size: 11px; color: var(--color-text-muted);">🏛️ {{ log.classroom }}</span></td>
+                            <td style="font-size: 12px;">{{ log.timestamp }}</td>
+                            <td>
+                                <span style="font-weight: 600; {% if log.distance_meters > 100 %}color: var(--color-danger);{% endif %}">
+                                    {{ log.distance_meters }}m
+                                </span>
+                            </td>
+                            <td style="font-weight: 700; color: var(--color-primary);">{{ log.student_count }}</td>
+                            <td>
+                                <span class="badge {% if log.status == 'Approved' %}badge-approved{% elif log.status == 'Suspicious' %}badge-suspicious{% else %}badge-rejected{% endif %}">
+                                    {{ log.status }}
+                                </span>
+                            </td>
+                            <td style="font-size: 11px; font-weight: 600; color: {% if log.status == 'Suspicious' %}var(--color-warning){% elif log.status == 'Rejected' %}var(--color-danger){% else %}var(--color-text-muted){% endif %};">
+                                {{ log.suspicious_reason or '-' }}
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-secondary btn-inspect" style="padding: 6px 12px; font-size: 11px;">Inspect Details</button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="9" style="text-align: center; color: var(--color-text-muted); padding: 40px;">No attendance logs found matching filters.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Audit Overlay -->
+<div class="modal-overlay" id="auditModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title" id="mTitle">Classroom Presence Verification Audit</h3>
+            <button class="modal-close" id="mClose">&times;</button>
+        </div>
+        
+        <div id="mSuspiciousBanner" class="suspicious-reason-txt" style="display: none;"></div>
+        
+        <div class="grid-2" style="margin-bottom: 20px;">
+            <!-- Left: Metadata and override form -->
+            <div>
+                <h4 style="font-family: var(--font-title); font-size: 14px; margin-bottom: 12px; border-bottom: 1px solid var(--border-card); padding-bottom: 4px;">Log Details</h4>
+                <div style="font-size: 13px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
+                    <div>👤 <strong>Faculty:</strong> <span id="mTeacher"></span></div>
+                    <div>📖 <strong>Subject:</strong> <span id="mSubject"></span></div>
+                    <div>🏛️ <strong>Classroom:</strong> <span id="mClassroom"></span></div>
+                    <div>⏰ <strong>Submitted:</strong> <span id="mTimestamp"></span></div>
+                    <div>🌐 <strong>Coordinates:</strong> <span id="mGPS"></span></div>
+                    <div>📏 <strong>Distance from College:</strong> <span id="mDistance"></span></div>
+                    <div>🔏 <strong>Image Difference Hash:</strong> <code id="mHash" style="background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px;"></code></div>
+                    <div>👤 <strong>Detected Student Count:</strong> <span id="mCount" style="font-weight: 700; color: var(--color-primary);"></span></div>
+                </div>
+                
+                <h4 style="font-family: var(--font-title); font-size: 14px; margin-bottom: 12px; border-bottom: 1px solid var(--border-card); padding-bottom: 4px;">HOD Verification Action</h4>
+                <form action="{{ url_for('admin_verify_action') }}" method="POST">
+                    <input type="hidden" name="log_id" id="mLogId">
+                    <div class="form-group">
+                        <label class="form-label" style="font-size: 11px;">Verification Status</label>
+                        <select class="form-control" name="status" id="mStatusSelect">
+                            <option value="Approved">Approved</option>
+                            <option value="Suspicious">Suspicious</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label class="form-label" style="font-size: 11px;">Administrative Review Notes</label>
+                        <textarea class="form-control" name="notes" id="mNotesText" rows="3" placeholder="Enter auditing details, justification for overrides..."></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Apply Verification Change</button>
+                </form>
+            </div>
+            
+            <!-- Right: Image Toggle Viewer -->
+            <div style="display: flex; flex-direction: column;">
+                <h4 style="font-family: var(--font-title); font-size: 14px; margin-bottom: 12px; border-bottom: 1px solid var(--border-card); padding-bottom: 4px;">Captured Image Evidence</h4>
+                
+                <div class="img-switch-container">
+                    <button type="button" class="img-switch-btn active" id="btnShowOriginal">Original Photo</button>
+                    <button type="button" class="img-switch-btn" id="btnShowDetections">AI Detection Bounding Boxes</button>
+                </div>
+                
+                <div style="width: 100%; aspect-ratio: 4/3; background: #000; border-radius: var(--border-radius-md); overflow: hidden; border: 1px solid var(--border-card); display: flex; align-items: center; justify-content: center; position: relative;">
+                    <img id="mOriginalImg" style="width: 100%; height: 100%; object-fit: contain; display: block;" src="" alt="Captured Original">
+                    <img id="mDetectedImg" style="width: 100%; height: 100%; object-fit: contain; display: none;" src="" alt="Captured Detections">
+                </div>
+                <p style="font-size: 10px; color: var(--color-text-muted); margin-top: 6px; text-align: center; line-height: 1.3;">
+                    YOLOv8-nano identifies students dynamically. Thin green boxes isolate individual students. Check original image for verification.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('auditModal');
+    const closeBtn = document.getElementById('mClose');
+    
+    // Modal fields
+    const mLogId = document.getElementById('mLogId');
+    const mTeacher = document.getElementById('mTeacher');
+    const mSubject = document.getElementById('mSubject');
+    const mClassroom = document.getElementById('mClassroom');
+    const mTimestamp = document.getElementById('mTimestamp');
+    const mGPS = document.getElementById('mGPS');
+    const mDistance = document.getElementById('mDistance');
+    const mHash = document.getElementById('mHash');
+    const mCount = document.getElementById('mCount');
+    const mStatusSelect = document.getElementById('mStatusSelect');
+    const mNotesText = document.getElementById('mNotesText');
+    const mSuspiciousBanner = document.getElementById('mSuspiciousBanner');
+    
+    // Images
+    const mOriginalImg = document.getElementById('mOriginalImg');
+    const mDetectedImg = document.getElementById('mDetectedImg');
+    const btnOriginal = document.getElementById('btnShowOriginal');
+    const btnDetections = document.getElementById('btnShowDetections');
+
+    // Attach click events to "Inspect" buttons
+    document.querySelectorAll('.btn-inspect').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const row = e.target.closest('.log-row');
+            
+            // Populate Modal Content from data attributes
+            mLogId.value = row.dataset.id;
+            mTeacher.innerText = row.dataset.teacher;
+            mSubject.innerText = row.dataset.subject;
+            mClassroom.innerText = row.dataset.classroom;
+            mTimestamp.innerText = row.dataset.timestamp;
+            mGPS.innerText = `Lat ${row.dataset.lat}, Lon ${row.dataset.lon}`;
+            
+            const distance = parseFloat(row.dataset.distance);
+            mDistance.innerHTML = `<span style="font-weight:700; color:${distance > 100 ? 'var(--color-danger)' : 'var(--color-success)'};">${distance} meters from center</span>`;
+            mHash.innerText = row.dataset.hash;
+            mCount.innerText = `${row.dataset.studentcount} detected`;
+            mStatusSelect.value = row.dataset.status;
+            mNotesText.value = row.dataset.notes;
+            
+            // Flag Display
+            if (row.dataset.status === 'Suspicious' || row.dataset.status === 'Rejected') {
+                mSuspiciousBanner.style.display = 'block';
+                mSuspiciousBanner.innerHTML = `🚨 <strong>Flag Type:</strong> ${row.dataset.reason}`;
+                mSuspiciousBanner.className = row.dataset.status === 'Suspicious' ? 'suspicious-reason-txt' : 'suspicious-reason-txt badge-rejected';
+                mSuspiciousBanner.style.background = row.dataset.status === 'Suspicious' ? 'var(--color-warning-light)' : 'var(--color-danger-light)';
+                mSuspiciousBanner.style.color = row.dataset.status === 'Suspicious' ? 'var(--color-warning)' : 'var(--color-danger)';
+            } else {
+                mSuspiciousBanner.style.display = 'none';
+            }
+            
+            // Set image sources
+            mOriginalImg.src = row.dataset.origImg;
+            mDetectedImg.src = row.dataset.detectedImg;
+            
+            // Reset image switcher to original
+            mOriginalImg.style.display = 'block';
+            mDetectedImg.style.display = 'none';
+            btnOriginal.classList.add('active');
+            btnDetections.classList.remove('active');
+            
+            // Open Modal
+            modal.classList.add('open');
+        });
+    });
+
+    // Close Modal actions
+    const closeModal = () => modal.classList.remove('open');
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+
+    // Image Switcher Logic
+    btnOriginal.addEventListener('click', () => {
+        mOriginalImg.style.display = 'block';
+        mDetectedImg.style.display = 'none';
+        btnOriginal.classList.add('active');
+        btnDetections.classList.remove('active');
+    });
+
+    btnDetections.addEventListener('click', () => {
+        mOriginalImg.style.display = 'none';
+        mDetectedImg.style.display = 'block';
+        btnOriginal.classList.remove('active');
+        btnDetections.classList.add('active');
+    });
+    
+    // Auto-open modal if url has inspect_id parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const inspectId = urlParams.get('inspect_id');
+    if (inspectId) {
+        const rows = document.querySelectorAll('.log-row');
+        for (let row of rows) {
+            if (row.dataset.id === inspectId) {
+                row.querySelector('.btn-inspect').click();
+                break;
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

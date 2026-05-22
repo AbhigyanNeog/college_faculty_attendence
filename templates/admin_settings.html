@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - VeriClass{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Campus Settings & Boundary Rules</h2>
+    <p style="color: var(--color-text-muted);">Adjust Geofencing coordinates, boundary limits, and active attendance time slots.</p>
+</div>
+
+<div class="login-wrapper" style="justify-content: flex-start; align-items: stretch; padding: 0;">
+    <div class="glass-card" style="padding: 24px; max-width: 700px; width: 100%;">
+        <h3 style="font-family: var(--font-title); font-size: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px;">
+            ⚙️ Campus Location & Verification Rules
+        </h3>
+        
+        <form action="{{ url_for('admin_settings') }}" method="POST">
+            <div class="form-group">
+                <label class="form-label" for="campus_name">Campus Name</label>
+                <input class="form-control" type="text" id="campus_name" name="campus_name" value="{{ settings.campus_name if settings else 'Main Campus' }}" required>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                <div class="form-group">
+                    <label class="form-label" for="latitude">Center Latitude *</label>
+                    <input class="form-control" type="number" step="any" id="latitude" name="latitude" value="{{ settings.latitude if settings else 27.475807921264003 }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="longitude">Center Longitude *</label>
+                    <input class="form-control" type="number" step="any" id="longitude" name="longitude" value="{{ settings.longitude if settings else 94.55106863579525 }}" required>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label class="form-label" for="radius_meters">Geofencing Radius (Meters) *</label>
+                <input class="form-control" type="number" step="0.1" id="radius_meters" name="radius_meters" value="{{ settings.radius_meters if settings else 100.0 }}" required>
+                <small style="color: var(--color-text-muted); font-size: 11px;">Teachers must be within this distance from the center coordinate to mark attendance.</small>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; margin-bottom: 30px;">
+                <div class="form-group">
+                    <label class="form-label" for="start_window_before_mins">Start Window (Mins before class) *</label>
+                    <input class="form-control" type="number" id="start_window_before_mins" name="start_window_before_mins" value="{{ settings.start_window_before_mins if settings else 5 }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="end_window_after_mins">End Window (Mins after class starts) *</label>
+                    <input class="form-control" type="number" id="end_window_after_mins" name="end_window_after_mins" value="{{ settings.end_window_after_mins if settings else 15 }}" required>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" type="submit" style="padding: 14px; font-size: 15px; width: 100%;">
+                Save Configuration Rules 💾
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

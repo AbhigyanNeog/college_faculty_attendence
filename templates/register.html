@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Faculty Self-Registration - VeriClass{% endblock %}
+
+{% block content %}
+<div class="login-wrapper" style="padding: 40px 0;">
+    <div class="glass-card login-card" style="max-width: 550px; width: 100%;">
+        <div class="login-header">
+            <h1>Faculty Registration</h1>
+            <p style="color: var(--color-text-muted); font-size: 14px;">Create your Smart Attendance account</p>
+        </div>
+        
+        <form action="{{ url_for('register') }}" method="POST">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label class="form-label" for="employee_id">Employee ID *</label>
+                    <input class="form-control" type="text" id="employee_id" name="employee_id" placeholder="e.g. EMP102" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="name">Full Name *</label>
+                    <input class="form-control" type="text" id="name" name="name" placeholder="e.g. Dr. Rajesh Sharma" required>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                <div class="form-group">
+                    <label class="form-label" for="email">Official Email *</label>
+                    <input class="form-control" type="email" id="email" name="email" placeholder="name@college.edu" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="phone">Phone Number</label>
+                    <input class="form-control" type="text" id="phone" name="phone" placeholder="e.g. +91 9876543210">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label class="form-label" for="department_id">Department *</label>
+                <select class="form-control" id="department_id" name="department_id" required style="background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); padding: 12px; border-radius: 8px;">
+                    <option value="" disabled selected>Select Department</option>
+                    {% for dept in departments %}
+                        <option value="{{ dept.id }}">{{ dept.name }} ({{ dept.code }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label class="form-label" for="username">Username *</label>
+                <input class="form-control" type="text" id="username" name="username" placeholder="e.g. rsharma" required autocomplete="username">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; margin-bottom: 24px;">
+                <div class="form-group">
+                    <label class="form-label" for="password">Password *</label>
+                    <input class="form-control" type="password" id="password" name="password" placeholder="••••••••" required autocomplete="new-password">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="confirm_password">Confirm Password *</label>
+                    <input class="form-control" type="password" id="confirm_password" name="confirm_password" placeholder="••••••••" required autocomplete="new-password">
+                </div>
+            </div>
+            
+            <button class="btn btn-primary" type="submit" style="width: 100%; padding: 14px; font-size: 15px; margin-bottom: 15px;">
+                Register Account 📝
+            </button>
+        </form>
+        
+        <div style="border-top: 1px solid var(--border-card); padding-top: 15px; text-align: center; font-size: 13px; color: var(--color-text-muted);">
+            <p>Already have an account? <a href="{{ url_for('login') }}" style="color: var(--color-primary); text-decoration: none; font-weight: 600;">Sign In</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

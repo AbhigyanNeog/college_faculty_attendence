@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Smart Faculty Attendance{% endblock %}</title>
+    <!-- CSS stylesheets -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navigation Header -->
+        <header class="app-header">
+            <div class="logo-section">
+                <span class="logo-icon">📡</span>
+                <span class="logo-text">VeriClass</span>
+            </div>
+            
+            {% if session.get('user_id') %}
+            <nav class="nav-links">
+                {% if session.get('role') == 'admin' %}
+                    <a href="{{ url_for('admin_dashboard') }}" class="nav-item {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">📊 Dashboard</a>
+                    <a href="{{ url_for('admin_teachers') }}" class="nav-item {% if request.endpoint == 'admin_teachers' %}active{% endif %}">👤 Teachers</a>
+                    <a href="{{ url_for('admin_approvals') }}" class="nav-item {% if request.endpoint == 'admin_approvals' %}active{% endif %}">✅ Approvals</a>
+                    <a href="{{ url_for('admin_departments') }}" class="nav-item {% if request.endpoint == 'admin_departments' %}active{% endif %}">🏢 Departments</a>
+                    <a href="{{ url_for('admin_timetable') }}" class="nav-item {% if request.endpoint == 'admin_timetable' %}active{% endif %}">📅 Schedules</a>
+                    <a href="{{ url_for('admin_attendance') }}" class="nav-item {% if request.endpoint == 'admin_attendance' %}active{% endif %}">📷 Log Inspector</a>
+                    <a href="{{ url_for('admin_reports') }}" class="nav-item {% if request.endpoint == 'admin_reports' %}active{% endif %}">📈 Analytics</a>
+                    <a href="{{ url_for('admin_settings') }}" class="nav-item {% if request.endpoint == 'admin_settings' %}active{% endif %}">⚙️ Settings</a>
+                {% else %}
+                    <a href="{{ url_for('teacher_dashboard') }}" class="nav-item {% if request.endpoint == 'teacher_dashboard' %}active{% endif %}">🏫 My Schedule</a>
+                {% endif %}
+            </nav>
+            
+            <div class="user-profile">
+                <span style="font-size: 13px; font-weight: 600; color: var(--color-text-muted);">
+                    {{ session.get('name') }} ({{ session.get('role')|capitalize }})
+                </span>
+                <button class="theme-toggle" id="themeToggle">🌙</button>
+                <a href="{{ url_for('logout') }}" class="btn-logout" title="Log Out">🚪</a>
+            </div>
+            {% else %}
+            <div class="user-profile">
+                <button class="theme-toggle" id="themeToggle">🌙</button>
+            </div>
+            {% endif %}
+        </header>
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert-box alert-{{ 'success' if category == 'success' else 'danger' }}">
+                        <span>{{ '✅' if category == 'success' else '❌' }} &nbsp; {{ message }}</span>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Main Content Grid -->
+        <main style="flex: 1; display: flex; flex-direction: column;">
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- App Footer -->
+        <footer class="app-footer">
+            <p>&copy; 2026 Smart Faculty Attendance & Classroom Verification System. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
