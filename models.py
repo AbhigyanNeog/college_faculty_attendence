@@ -1,6 +1,14 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import werkzeug.security as security
+from sqlalchemy.engine import Engine
+from sqlalchemy import event
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 db = SQLAlchemy()
 
@@ -101,7 +109,7 @@ class TeacherProfile(db.Model):
     user = db.relationship('User', foreign_keys=[user_id], back_populates='profile', lazy=True)
     approver = db.relationship('User', foreign_keys=[approved_by_id], lazy=True)
     timetables = db.relationship('Timetable', backref='teacher_profile', cascade="all, delete-orphan", lazy=True)
-    attendance_logs = db.relationship('AttendanceLog', backref='teacher_profile', cascade="all, delete-orphan", lazy=True)
+    attendance_logs = db.relationship('AttendanceLog', backref='teacher_profile', lazy=True)
 
     def to_dict(self):
         return {
@@ -132,7 +140,7 @@ class Timetable(db.Model):
     start_time = db.Column(db.Time, nullable=False)
     end_time = db.Column(db.Time, nullable=False)
     
-    attendance_logs = db.relationship('AttendanceLog', backref='timetable', cascade="all, delete-orphan", lazy=True)
+    attendance_logs = db.relationship('AttendanceLog', backref='timetable', lazy=True)
 
     def to_dict(self):
         return {
@@ -187,8 +195,8 @@ class AttendanceLog(db.Model):
     __tablename__ = 'attendance_logs'
     
     id = db.Column(db.Integer, primary_key=True)
-    teacher_profile_id = db.Column(db.Integer, db.ForeignKey('teacher_profiles.id', ondelete='CASCADE'), nullable=False)
-    timetable_id = db.Column(db.Integer, db.ForeignKey('timetables.id', ondelete='CASCADE'), nullable=False)
+    teacher_profile_id = db.Column(db.Integer, db.ForeignKey('teacher_profiles.id', ondelete='SET NULL'), nullable=True)
+    timetable_id = db.Column(db.Integer, db.ForeignKey('timetables.id', ondelete='SET NULL'), nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships with GPS and Image records
@@ -198,20 +206,37 @@ class AttendanceLog(db.Model):
     status = db.Column(db.String(20), nullable=False, default='Pending') # 'Approved', 'Suspicious', 'Rejected'
     suspicious_reason = db.Column(db.String(255), nullable=True)
     verification_notes = db.Column(db.Text, nullable=True)
+    
+    # Soft delete / Archiving field
+    is_archived = db.Column(db.Boolean, default=False, nullable=False)
+    
+    # Cached snapshot details for history/archive preservation
+    teacher_name = db.Column(db.String(120), nullable=True)
+    subject = db.Column(db.String(100), nullable=True)
+    classroom = db.Column(db.String(50), nullable=True)
+    class_name = db.Column(db.String(100), nullable=True)
+    period = db.Column(db.String(50), nullable=True)
 
     gps_record = db.relationship('GPSRecord', backref=db.backref('attendance_log', uselist=False), lazy=True)
     image_record = db.relationship('ImageRecord', backref=db.backref('attendance_log', uselist=False), lazy=True)
 
     def to_dict(self):
+        # Fallback to cached snapshot fields if the relationship objects are deleted/unset
+        teacher_n = self.teacher_profile.name if self.teacher_profile else (self.teacher_name or 'Deleted Faculty')
+        subj = self.timetable.subject if self.timetable else (self.subject or 'Deleted Subject')
+        room = self.timetable.classroom if self.timetable else (self.classroom or 'N/A')
+        cls_n = self.timetable.class_section.name if (self.timetable and self.timetable.class_section) else (self.class_name or 'N/A')
+        pd = self.timetable.period if self.timetable else (self.period or 'N/A')
+        
         return {
             'id': self.id,
             'teacher_profile_id': self.teacher_profile_id,
-            'teacher_name': self.teacher_profile.name if self.teacher_profile else 'Unknown',
+            'teacher_name': teacher_n,
             'timetable_id': self.timetable_id,
-            'subject': self.timetable.subject if self.timetable else 'Deleted Class',
-            'classroom': self.timetable.classroom if self.timetable else 'N/A',
-            'class_name': self.timetable.class_section.name if (self.timetable and self.timetable.class_section) else 'N/A',
-            'period': self.timetable.period if self.timetable else 'N/A',
+            'subject': subj,
+            'classroom': room,
+            'class_name': cls_n,
+            'period': pd,
             'timestamp': self.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
             'latitude': self.gps_record.latitude if self.gps_record else 0.0,
             'longitude': self.gps_record.longitude if self.gps_record else 0.0,
@@ -221,7 +246,8 @@ class AttendanceLog(db.Model):
             'student_count': self.image_record.student_count if self.image_record else 0,
             'status': self.status,
             'suspicious_reason': self.suspicious_reason,
-            'verification_notes': self.verification_notes
+            'verification_notes': self.verification_notes,
+            'is_archived': self.is_archived
         }
 
 class CampusSetting(db.Model):

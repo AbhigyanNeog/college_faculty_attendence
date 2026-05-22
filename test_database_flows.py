@@ -308,5 +308,39 @@ class FacultySystemTestCase(unittest.TestCase):
             tt_check = Timetable.query.get(tt_id)
             self.assertIsNone(tt_check)
 
+    def test_admin_profile_credential_update(self):
+        # 1. Login as admin
+        self.login_client('admin', 'admin123')
+
+        # 2. Update credentials (change username to 'superadmin', set new password 'superpass123')
+        response = self.client.post('/admin/settings/profile', data={
+            'username': 'superadmin',
+            'email': 'superadmin@college.edu',
+            'new_password': 'superpass123',
+            'confirm_password': 'superpass123'
+        }, follow_redirects=True)
+        self.assertIn(b"Administrator credentials updated successfully!", response.data)
+
+        # 3. Log out and try old credentials (should fail)
+        self.logout_client()
+        response_fail = self.login_client('admin', 'admin123')
+        self.assertIn(b"Invalid username or password", response_fail.data)
+
+        # 4. Log in with new credentials (should succeed)
+        response_success = self.login_client('superadmin', 'superpass123')
+        self.assertIn(b"Log Out", response_success.data)
+
+
+        # 5. Test password mismatch (should fail validation)
+        response_mismatch = self.client.post('/admin/settings/profile', data={
+            'username': 'superadmin',
+            'email': 'superadmin@college.edu',
+            'new_password': 'longermismatch',
+            'confirm_password': 'mismatch'
+        }, follow_redirects=True)
+        self.assertIn(b"Passwords do not match", response_mismatch.data)
+
+
 if __name__ == '__main__':
     unittest.main()
+

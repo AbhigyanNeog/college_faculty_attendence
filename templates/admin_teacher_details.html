@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Faculty Details: {{ profile.name }} - VeriClass{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+        <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Faculty Profile Details</h2>
+        <p style="color: var(--color-text-muted);">Manage profile settings and assigned timetable schedules for <strong>{{ profile.name }}</strong>.</p>
+    </div>
+    <a href="{{ url_for('admin_teachers') }}" class="btn btn-secondary" style="font-size: 13px;">⬅️ Back to Faculty List</a>
+</div>
+
+<div class="grid-sidebar" style="display: grid; grid-template-columns: 350px 1fr; gap: 24px;">
+    <!-- Profile Card & Edit Profile Form -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div class="glass-card" style="padding: 20px; text-align: center;">
+            <div style="font-size: 50px; margin-bottom: 12px;">👨‍🏫</div>
+            <h3 style="font-family: var(--font-title); font-size: 18px; margin-bottom: 4px;">{{ profile.name }}</h3>
+            <p style="color: var(--color-text-muted); font-size: 13px; margin-bottom: 10px;"><code>{{ profile.employee_id }}</code></p>
+            <span class="badge {% if profile.user and profile.user.is_active %}badge-approved{% else %}badge-rejected{% endif %}" style="font-size: 11px; padding: 4px 10px;">
+                {{ 'Active Access' if (profile.user and profile.user.is_active) else 'Access Disabled' }}
+            </span>
+            <div style="margin-top: 15px; border-top: 1px solid var(--border-card); padding-top: 15px; text-align: left; font-size: 13px; display: flex; flex-direction: column; gap: 8px;">
+                <div>🏢 <strong>Dept:</strong> {{ profile.department.name if profile.department else 'Not Assigned' }}</div>
+                <div>✉️ <strong>Email:</strong> {{ profile.user.email if profile.user else 'N/A' }}</div>
+                <div>📞 <strong>Phone:</strong> {{ profile.phone or 'Not Provided' }}</div>
+            </div>
+        </div>
+
+        <div class="glass-card" style="padding: 20px;">
+            <h3 style="font-family: var(--font-title); font-size: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px;">📝 Update Profile Info</h3>
+            <form action="{{ url_for('admin_teacher_details', profile_id=profile.id) }}" method="POST">
+                <input type="hidden" name="action" value="edit_profile">
+                
+                <div class="form-group">
+                    <label class="form-label" for="employee_id">Employee ID</label>
+                    <input class="form-control" type="text" id="employee_id" name="employee_id" value="{{ profile.employee_id }}" required>
+                </div>
+                
+                <div class="form-group" style="margin-top: 12px;">
+                    <label class="form-label" for="name">Full Name</label>
+                    <input class="form-control" type="text" id="name" name="name" value="{{ profile.name }}" required>
+                </div>
+                
+                <div class="form-group" style="margin-top: 12px;">
+                    <label class="form-label" for="email">Email Address</label>
+                    <input class="form-control" type="email" id="email" name="email" value="{{ profile.user.email if profile.user else '' }}" required>
+                </div>
+                
+                <div class="form-group" style="margin-top: 12px;">
+                    <label class="form-label" for="phone">Phone Number</label>
+                    <input class="form-control" type="text" id="phone" name="phone" value="{{ profile.phone or '' }}">
+                </div>
+                
+                <div class="form-group" style="margin-top: 12px; margin-bottom: 20px;">
+                    <label class="form-label" for="department_id">Department</label>
+                    <select class="form-control" id="department_id" name="department_id" style="background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); padding: 12px; border-radius: 8px;">
+                        <option value="">No Department</option>
+                        {% for dept in departments %}
+                            <option value="{{ dept.id }}" {% if profile.department_id == dept.id %}selected{% endif %}>{{ dept.name }} ({{ dept.code }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Save Changes</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Timetable Slots Card -->
+    <div class="glass-card" style="padding: 20px; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px;">
+            <h3 style="font-family: var(--font-title); font-size: 16px; margin: 0;">📅 Assigned Class & Timetable Slots</h3>
+            <button class="btn btn-primary" id="btnOpenAssignModal" style="padding: 8px 16px; font-size: 12px; background: linear-gradient(135deg, #4f46e5, #6366f1); border: none;">Assign New Class Slot ➕</button>
+        </div>
+
+        <div class="table-responsive" style="flex: 1;">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Day of Week</th>
+                        <th>Class Section</th>
+                        <th>Period</th>
+                        <th>Subject</th>
+                        <th>Room</th>
+                        <th>Time Window</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if slots %}
+                        {% for slot in slots %}
+                            <tr class="slot-row"
+                                data-id="{{ slot.id }}"
+                                data-class-id="{{ slot.class_id }}"
+                                data-subject="{{ slot.subject }}"
+                                data-classroom="{{ slot.classroom }}"
+                                data-day="{{ slot.day_of_week }}"
+                                data-period="{{ slot.period }}"
+                                data-start="{{ slot.start_time }}"
+                                data-end="{{ slot.end_time }}">
+                                <td style="font-weight: 700;">
+                                    {% if slot.day_of_week == 0 %}Monday
+                                    {% elif slot.day_of_week == 1 %}Tuesday
+                                    {% elif slot.day_of_week == 2 %}Wednesday
+                                    {% elif slot.day_of_week == 3 %}Thursday
+                                    {% elif slot.day_of_week == 4 %}Friday
+                                    {% elif slot.day_of_week == 5 %}Saturday
+                                    {% elif slot.day_of_week == 6 %}Sunday
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge badge-approved" style="font-size: 11px; font-family: monospace;">{{ slot.class_name }}</span></td>
+                                <td><code>{{ slot.period }}</code></td>
+                                <td style="font-weight: 600;">{{ slot.subject }}</td>
+                                <td><code>{{ slot.classroom }}</code></td>
+                                <td style="font-size: 12px;">{{ slot.start_time }} - {{ slot.end_time }}</td>
+                                <td>
+                                    <div style="display: flex; gap: 8px;">
+                                        <button class="btn btn-secondary btn-edit-slot" style="padding: 4px 8px; font-size: 11px;">Edit</button>
+                                        <form action="{{ url_for('admin_teacher_details', profile_id=profile.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to remove this assigned slot from the teacher?');">
+                                            <input type="hidden" name="action" value="delete_slot">
+                                            <input type="hidden" name="slot_id" value="{{ slot.id }}">
+                                            <button type="submit" class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;">Remove</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: var(--color-text-muted); padding: 40px;">No class slots assigned to this teacher yet. Click the button above to add.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Assign New Class Slot -->
+<div class="modal-overlay" id="assignModal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Assign Class Timetable Slot</h3>
+            <button class="modal-close" id="assignClose">&times;</button>
+        </div>
+        <form action="{{ url_for('admin_teacher_details', profile_id=profile.id) }}" method="POST" style="margin-top: 15px;">
+            <input type="hidden" name="action" value="assign_slot">
+            
+            <div class="form-group">
+                <label class="form-label" for="class_id">Class Section *</label>
+                <select class="form-control" name="class_id" required style="background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); padding: 12px; border-radius: 8px;">
+                    <option value="" disabled selected>Select Class Section</option>
+                    {% for cls in classes %}
+                        <option value="{{ cls.id }}">{{ cls.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="subject">Subject *</label>
+                <input class="form-control" type="text" name="subject" placeholder="e.g. Data Structures" required>
+            </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="classroom">Classroom / Room Number *</label>
+                <input class="form-control" type="text" name="classroom" placeholder="e.g. LH-201" required>
+            </div>
+            
+            <div class="grid-2" style="margin-top: 12px; gap: 12px;">
+                <div class="form-group">
+                    <label class="form-label" for="day_of_week">Day of Week *</label>
+                    <select class="form-control" name="day_of_week" required style="background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); padding: 12px; border-radius: 8px;">
+                        <option value="0">Monday</option>
+                        <option value="1">Tuesday</option>
+                        <option value="2">Wednesday</option>
+                        <option value="3">Thursday</option>
+                        <option value="4">Friday</option>
+                        <option value="5">Saturday</option>
+                        <option value="6">Sunday</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="period">Period Name *</label>
+                    <input class="form-control" type="text" name="period" placeholder="e.g. Period 1" required>
+                </div>
+            </div>
+            
+            <div class="grid-2" style="margin-top: 12px; margin-bottom: 24px; gap: 12px;">
+                <div class="form-group">
+                    <label class="form-label" for="start_time">Start Time *</label>
+                    <input class="form-control" type="time" name="start_time" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="end_time">End Time *</label>
+                    <input class="form-control" type="time" name="end_time" required>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Assign Class Slot</button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Edit Timetable Slot -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Edit Class Timetable Slot</h3>
+            <button class="modal-close" id="editClose">&times;</button>
+        </div>
+        <form id="editForm" action="" method="POST" style="margin-top: 15px;">
+            <div class="form-group">
+                <label class="form-label" for="edit_class_id">Class Section *</label>
+                <select class="form-control" name="class_id" id="edit_class_id" required style="background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); padding: 12px; border-radius: 8px;">
+                    {% for cls in classes %}
+                        <option value="{{ cls.id }}">{{ cls.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="edit_subject">Subject *</label>
+                <input class="form-control" type="text" name="subject" id="edit_subject" required>
+            </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label" for="edit_classroom">Classroom / Room Number *</label>
+                <input class="form-control" type="text" name="classroom" id="edit_classroom" required>
+            </div>
+            
+            <div class="grid-2" style="margin-top: 12px; gap: 12px;">
+                <div class="form-group">
+                    <label class="form-label" for="edit_day_of_week">Day of Week *</label>
+                    <select class="form-control" name="day_of_week" id="edit_day_of_week" required style="background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); padding: 12px; border-radius: 8px;">
+                        <option value="0">Monday</option>
+                        <option value="1">Tuesday</option>
+                        <option value="2">Wednesday</option>
+                        <option value="3">Thursday</option>
+                        <option value="4">Friday</option>
+                        <option value="5">Saturday</option>
+                        <option value="6">Sunday</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="edit_period">Period Name *</label>
+                    <input class="form-control" type="text" name="period" id="edit_period" required>
+                </div>
+            </div>
+            
+            <div class="grid-2" style="margin-top: 12px; margin-bottom: 24px; gap: 12px;">
+                <div class="form-group">
+                    <label class="form-label" for="edit_start_time">Start Time *</label>
+                    <input class="form-control" type="time" name="start_time" id="edit_start_time" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="edit_end_time">End Time *</label>
+                    <input class="form-control" type="time" name="end_time" id="edit_end_time" required>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Update Timetable Slot</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Modal Overlay handling
+    const assignModal = document.getElementById('assignModal');
+    const editModal = document.getElementById('editModal');
+    
+    const btnOpenAssignModal = document.getElementById('btnOpenAssignModal');
+    const assignClose = document.getElementById('assignClose');
+    const editClose = document.getElementById('editClose');
+    
+    // Assign modal trigger
+    if (btnOpenAssignModal) {
+        btnOpenAssignModal.addEventListener('click', () => {
+            assignModal.classList.add('open');
+        });
+    }
+    
+    assignClose.addEventListener('click', () => assignModal.classList.remove('open'));
+    editClose.addEventListener('click', () => editModal.classList.remove('open'));
+    
+    window.addEventListener('click', (e) => {
+        if (e.target === assignModal) assignModal.classList.remove('open');
+        if (e.target === editModal) editModal.classList.remove('open');
+    });
+    
+    // Edit Slot button click
+    const editForm = document.getElementById('editForm');
+    const editClassId = document.getElementById('edit_class_id');
+    const editSubject = document.getElementById('edit_subject');
+    const editClassroom = document.getElementById('edit_classroom');
+    const editDayOfWeek = document.getElementById('edit_day_of_week');
+    const editPeriod = document.getElementById('edit_period');
+    const editStartTime = document.getElementById('edit_start_time');
+    const editEndTime = document.getElementById('edit_end_time');
+    
+    document.querySelectorAll('.btn-edit-slot').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const row = e.target.closest('.slot-row');
+            
+            // Populate form
+            editClassId.value = row.dataset.classId;
+            editSubject.value = row.dataset.subject;
+            editClassroom.value = row.dataset.classroom;
+            editDayOfWeek.value = row.dataset.day;
+            editPeriod.value = row.dataset.period;
+            editStartTime.value = row.dataset.start;
+            editEndTime.value = row.dataset.end;
+            
+            // Set action URL dynamically
+            editForm.action = `/admin/timetable/edit/${row.dataset.id}`;
+            
+            // Open modal
+            editModal.classList.add('open');
+        });
+    });
+});
+</script>
+{% endblock %}

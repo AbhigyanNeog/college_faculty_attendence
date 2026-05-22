@@ -1,16 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}Log Inspector - VeriClass{% endblock %}
+{% block title %}Archive Hub - VeriClass{% endblock %}
 
 {% block content %}
-<div style="margin-bottom: 24px;">
-    <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Classroom Log Inspector</h2>
-    <p style="color: var(--color-text-muted);">Audit faculty attendance submissions, view live captures, and resolve flagged suspicious activity.</p>
+<div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+        <h2 style="font-family: var(--font-title); font-size: 26px; font-weight: 800;">Monthly Attendance Archive Hub 📦</h2>
+        <p style="color: var(--color-text-muted);">Access preserved historical monthly records. Restoring makes them active again; deleting permanently erases the files.</p>
+    </div>
+    <a href="{{ url_for('admin_attendance') }}" class="btn btn-secondary" style="font-size: 13px;">⬅️ Back to Active Logs</a>
 </div>
 
 <!-- Filters Panel -->
 <div class="glass-card" style="padding: 16px; margin-bottom: 24px;">
-    <form method="GET" action="{{ url_for('admin_attendance') }}" style="display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 14px; align-items: end;">
+    <form method="GET" action="{{ url_for('admin_archive') }}" style="display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 14px; align-items: end;">
         <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" style="font-size: 11px;">Faculty Member</label>
             <select class="form-control" name="profile_id">
@@ -48,17 +51,14 @@
         
         <div style="display: flex; gap: 8px;">
             <button type="submit" class="btn btn-primary">🔍 Filter</button>
-            <a href="{{ url_for('admin_attendance') }}" class="btn btn-secondary" style="padding: 10px;">Reset</a>
+            <a href="{{ url_for('admin_archive') }}" class="btn btn-secondary" style="padding: 10px;">Reset</a>
         </div>
     </form>
 </div>
 
 <!-- Logs Database Table -->
 <div class="glass-card" style="padding: 20px; overflow: hidden; margin-bottom: 0;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h3 style="font-family: var(--font-title); font-size: 16px;">📸 Classroom Activity Logs ({{ logs|length }} items)</h3>
-        <a href="{{ url_for('admin_archive') }}" class="btn btn-primary" style="background: linear-gradient(135deg, #6b7280, #4b5563); border: none; font-size: 13px;">View Archive Hub 📦</a>
-    </div>
+    <h3 style="font-family: var(--font-title); font-size: 16px; margin-bottom: 16px;">📦 Archived Historical Logs ({{ logs|length }} items)</h3>
     
     <div class="table-responsive">
         <table class="custom-table" id="logsTable">
@@ -116,12 +116,14 @@
                             </td>
                             <td>
                                 <div style="display: flex; gap: 6px;">
-                                    <button type="button" class="btn btn-secondary btn-inspect" style="padding: 6px 12px; font-size: 11px;">Inspect Details</button>
-                                    <form action="{{ url_for('admin_attendance_archive', log_id=log.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to archive this attendance record? It will be hidden from the active dashboard but preserved in the monthly archives.');">
-                                        <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 11px; background-color: var(--color-warning); color: #000; border-color: var(--color-warning);">Archive 📦</button>
+                                    <button type="button" class="btn btn-secondary btn-inspect" style="padding: 6px 12px; font-size: 11px;">Inspect</button>
+                                    
+                                    <form action="{{ url_for('admin_attendance_restore', log_id=log.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to restore this attendance log to the active dashboard?');">
+                                        <button type="submit" class="btn btn-success" style="padding: 6px 12px; font-size: 11px; background: linear-gradient(135deg, #10b981, #059669); border: none;">Restore 🔄</button>
                                     </form>
-                                    <form action="{{ url_for('admin_attendance_delete', log_id=log.id, redirect_to='admin_attendance') }}" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this activity log?');">
-                                        <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 11px;">Delete 🗑️</button>
+                                    
+                                    <form action="{{ url_for('admin_attendance_delete', log_id=log.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('PERMANENTLY delete this record? This will erase the database record and delete its photo files. This cannot be undone.');">
+                                        <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 11px;">Delete ❌</button>
                                     </form>
                                 </div>
                             </td>
@@ -129,7 +131,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="9" style="text-align: center; color: var(--color-text-muted); padding: 40px;">No attendance logs found matching filters.</td>
+                        <td colspan="9" style="text-align: center; color: var(--color-text-muted); padding: 40px;">No archived attendance logs found.</td>
                     </tr>
                 {% endif %}
             </tbody>
@@ -141,14 +143,14 @@
 <div class="modal-overlay" id="auditModal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 class="modal-title" id="mTitle">Classroom Presence Verification Audit</h3>
+            <h3 class="modal-title" id="mTitle">Archived Classroom Presence Audit</h3>
             <button class="modal-close" id="mClose">&times;</button>
         </div>
         
         <div id="mSuspiciousBanner" class="suspicious-reason-txt" style="display: none;"></div>
         
         <div class="grid-2" style="margin-bottom: 20px;">
-            <!-- Left: Metadata and override form -->
+            <!-- Left: Metadata -->
             <div>
                 <h4 style="font-family: var(--font-title); font-size: 14px; margin-bottom: 12px; border-bottom: 1px solid var(--border-card); padding-bottom: 4px;">Log Details</h4>
                 <div style="font-size: 13px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
@@ -160,30 +162,12 @@
                     <div>📏 <strong>Distance from College:</strong> <span id="mDistance"></span></div>
                     <div>🔏 <strong>Image Difference Hash:</strong> <code id="mHash" style="background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px;"></code></div>
                     <div>👤 <strong>Detected Student Count:</strong> <span id="mCount" style="font-weight: 700; color: var(--color-primary);"></span></div>
+                    <div>📝 <strong>Verification Status:</strong> <span id="mStatusBadge"></span></div>
+                    <div>🗒️ <strong>Review Notes:</strong> <span id="mNotes" style="font-style: italic; color: var(--color-text-muted);"></span></div>
                 </div>
-                
-                <h4 style="font-family: var(--font-title); font-size: 14px; margin-bottom: 12px; border-bottom: 1px solid var(--border-card); padding-bottom: 4px;">HOD Verification Action</h4>
-                <form action="{{ url_for('admin_verify_action') }}" method="POST">
-                    <input type="hidden" name="log_id" id="mLogId">
-                    <div class="form-group">
-                        <label class="form-label" style="font-size: 11px;">Verification Status</label>
-                        <select class="form-control" name="status" id="mStatusSelect">
-                            <option value="Approved">Approved</option>
-                            <option value="Suspicious">Suspicious</option>
-                            <option value="Rejected">Rejected</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label class="form-label" style="font-size: 11px;">Administrative Review Notes</label>
-                        <textarea class="form-control" name="notes" id="mNotesText" rows="3" placeholder="Enter auditing details, justification for overrides..."></textarea>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">Apply Verification Change</button>
-                </form>
             </div>
             
-            <!-- Right: Image Toggle Viewer -->
+            <!-- Right: Image Viewer -->
             <div style="display: flex; flex-direction: column;">
                 <h4 style="font-family: var(--font-title); font-size: 14px; margin-bottom: 12px; border-bottom: 1px solid var(--border-card); padding-bottom: 4px;">Captured Image Evidence</h4>
                 
@@ -196,9 +180,6 @@
                     <img id="mOriginalImg" style="width: 100%; height: 100%; object-fit: contain; display: block;" src="" alt="Captured Original">
                     <img id="mDetectedImg" style="width: 100%; height: 100%; object-fit: contain; display: none;" src="" alt="Captured Detections">
                 </div>
-                <p style="font-size: 10px; color: var(--color-text-muted); margin-top: 6px; text-align: center; line-height: 1.3;">
-                    YOLOv8-nano identifies students dynamically. Thin green boxes isolate individual students. Check original image for verification.
-                </p>
             </div>
         </div>
     </div>
@@ -212,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeBtn = document.getElementById('mClose');
     
     // Modal fields
-    const mLogId = document.getElementById('mLogId');
     const mTeacher = document.getElementById('mTeacher');
     const mSubject = document.getElementById('mSubject');
     const mClassroom = document.getElementById('mClassroom');
@@ -221,8 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const mDistance = document.getElementById('mDistance');
     const mHash = document.getElementById('mHash');
     const mCount = document.getElementById('mCount');
-    const mStatusSelect = document.getElementById('mStatusSelect');
-    const mNotesText = document.getElementById('mNotesText');
+    const mStatusBadge = document.getElementById('mStatusBadge');
+    const mNotes = document.getElementById('mNotes');
     const mSuspiciousBanner = document.getElementById('mSuspiciousBanner');
     
     // Images
@@ -231,13 +211,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnOriginal = document.getElementById('btnShowOriginal');
     const btnDetections = document.getElementById('btnShowDetections');
 
-    // Attach click events to "Inspect" buttons
+    // Inspect buttons click
     document.querySelectorAll('.btn-inspect').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const row = e.target.closest('.log-row');
             
-            // Populate Modal Content from data attributes
-            mLogId.value = row.dataset.id;
             mTeacher.innerText = row.dataset.teacher;
             mSubject.innerText = row.dataset.subject;
             mClassroom.innerText = row.dataset.classroom;
@@ -245,13 +223,15 @@ document.addEventListener('DOMContentLoaded', () => {
             mGPS.innerText = `Lat ${row.dataset.lat}, Lon ${row.dataset.lon}`;
             
             const distance = parseFloat(row.dataset.distance);
-            mDistance.innerHTML = `<span style="font-weight:700; color:${distance > 100 ? 'var(--color-danger)' : 'var(--color-success)'};">${distance} meters from center</span>`;
+            mDistance.innerHTML = `<span style="font-weight:700; color:${distance > 100 ? 'var(--color-danger)' : 'var(--color-success)'};">${distance} meters</span>`;
             mHash.innerText = row.dataset.hash;
             mCount.innerText = `${row.dataset.studentcount} detected`;
-            mStatusSelect.value = row.dataset.status;
-            mNotesText.value = row.dataset.notes;
             
-            // Flag Display
+            mStatusBadge.className = `badge ${row.dataset.status === 'Approved' ? 'badge-approved' : (row.dataset.status === 'Suspicious' ? 'badge-suspicious' : 'badge-rejected')}`;
+            mStatusBadge.innerText = row.dataset.status;
+            
+            mNotes.innerText = row.dataset.notes || '(None)';
+            
             if (row.dataset.status === 'Suspicious' || row.dataset.status === 'Rejected') {
                 mSuspiciousBanner.style.display = 'block';
                 mSuspiciousBanner.innerHTML = `🚨 <strong>Flag Type:</strong> ${row.dataset.reason}`;
@@ -262,29 +242,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 mSuspiciousBanner.style.display = 'none';
             }
             
-            // Set image sources
             mOriginalImg.src = row.dataset.origImg;
             mDetectedImg.src = row.dataset.detectedImg;
             
-            // Reset image switcher to original
             mOriginalImg.style.display = 'block';
             mDetectedImg.style.display = 'none';
             btnOriginal.classList.add('active');
             btnDetections.classList.remove('active');
             
-            // Open Modal
             modal.classList.add('open');
         });
     });
 
-    // Close Modal actions
     const closeModal = () => modal.classList.remove('open');
     closeBtn.addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => {
         if (e.target === modal) closeModal();
     });
 
-    // Image Switcher Logic
     btnOriginal.addEventListener('click', () => {
         mOriginalImg.style.display = 'block';
         mDetectedImg.style.display = 'none';
@@ -298,19 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btnOriginal.classList.remove('active');
         btnDetections.classList.add('active');
     });
-    
-    // Auto-open modal if url has inspect_id parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    const inspectId = urlParams.get('inspect_id');
-    if (inspectId) {
-        const rows = document.querySelectorAll('.log-row');
-        for (let row of rows) {
-            if (row.dataset.id === inspectId) {
-                row.querySelector('.btn-inspect').click();
-                break;
-            }
-        }
-    }
 });
 </script>
 {% endblock %}

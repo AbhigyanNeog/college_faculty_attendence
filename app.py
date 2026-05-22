@@ -450,7 +450,12 @@ def submit_attendance():
         gps_record_id=gps_rec.id,
         image_record_id=img_rec.id,
         status=status,
-        suspicious_reason=suspicious_reason
+        suspicious_reason=suspicious_reason,
+        teacher_name=teacher.name,
+        subject=tt.subject,
+        classroom=tt.classroom,
+        class_name=tt.class_section.name if tt.class_section else 'N/A',
+        period=tt.period
     )
     
     db.session.add(log)
@@ -480,7 +485,10 @@ def admin_dashboard():
     
     # Metrics computations for Today
     scheduled_count = Timetable.query.filter_by(day_of_week=now.weekday()).count()
-    completed_logs = AttendanceLog.query.filter(AttendanceLog.timestamp.between(today_start, today_end)).all()
+    completed_logs = AttendanceLog.query.filter(
+        AttendanceLog.timestamp.between(today_start, today_end),
+        AttendanceLog.is_archived == False
+    ).all()
     completed_count = len(completed_logs)
     
     compliance_rate = 0
@@ -489,7 +497,8 @@ def admin_dashboard():
         
     suspicious_count = AttendanceLog.query.filter(
         AttendanceLog.timestamp.between(today_start, today_end),
-        AttendanceLog.status == 'Suspicious'
+        AttendanceLog.status == 'Suspicious',
+        AttendanceLog.is_archived == False
     ).count()
     
     # Registrations pending approval
@@ -513,7 +522,8 @@ def admin_dashboard():
     suspicious_logs = []
     suspicious_entries = AttendanceLog.query.filter(
         AttendanceLog.timestamp.between(today_start, today_end),
-        AttendanceLog.status == 'Suspicious'
+        AttendanceLog.status == 'Suspicious',
+        AttendanceLog.is_archived == False
     ).all()
     for log in suspicious_entries:
         suspicious_logs.append(log.to_dict())
@@ -1114,7 +1124,7 @@ def admin_attendance():
     date_str = request.args.get('date')
     reason = request.args.get('reason')
     
-    query = AttendanceLog.query
+    query = AttendanceLog.query.filter(AttendanceLog.is_archived == False)
     
     if profile_id:
         query = query.filter(AttendanceLog.teacher_profile_id == int(profile_id))
@@ -1160,6 +1170,241 @@ def admin_verify_action():
         
     return redirect(url_for('admin_attendance'))
 
+@app.route('/admin/attendance/archive/<int:log_id>', methods=['POST'])
+def admin_attendance_archive(log_id):
+    if not is_logged_in() or session.get('role') != 'admin':
+        flash("Access Denied.", "danger")
+        return redirect(url_for('login'))
+        
+    log = AttendanceLog.query.get(log_id)
+    if log:
+        log.is_archived = True
+        db.session.commit()
+        flash("Attendance record archived successfully.", "success")
+    else:
+        flash("Attendance record not found.", "danger")
+        
+    return redirect(url_for('admin_attendance'))
+
+@app.route('/admin/archive')
+def admin_archive():
+    if not is_logged_in() or session.get('role') != 'admin':
+        flash("Access Denied.", "danger")
+        return redirect(url_for('login'))
+        
+    # Filters parameters
+    profile_id = request.args.get('profile_id')
+    status = request.args.get('status')
+    date_str = request.args.get('date')
+    reason = request.args.get('reason')
+    
+    query = AttendanceLog.query.filter(AttendanceLog.is_archived == True)
+    
+    if profile_id:
+        query = query.filter(AttendanceLog.teacher_profile_id == int(profile_id))
+    if status:
+        query = query.filter(AttendanceLog.status == status)
+    if date_str:
+        target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+        query = query.filter(db.func.date(AttendanceLog.timestamp) == target_date)
+    if reason:
+        query = query.filter(AttendanceLog.suspicious_reason == reason)
+        
+    logs_raw = query.order_by(AttendanceLog.timestamp.desc()).all()
+    logs = [log.to_dict() for log in logs_raw]
+    
+    teachers = TeacherProfile.query.order_by(TeacherProfile.name).all()
+    
+    return render_template('admin_archive.html',
+                           logs=logs,
+                           teachers=teachers,
+                           selected_profile_id=profile_id,
+                           selected_status=status,
+                           selected_date=date_str,
+                           selected_reason=reason)
+
+@app.route('/admin/attendance/restore/<int:log_id>', methods=['POST'])
+def admin_attendance_restore(log_id):
+    if not is_logged_in() or session.get('role') != 'admin':
+        flash("Access Denied.", "danger")
+        return redirect(url_for('login'))
+        
+    log = AttendanceLog.query.get(log_id)
+    if log:
+        log.is_archived = False
+        db.session.commit()
+        flash("Attendance record restored to active view successfully.", "success")
+    else:
+        flash("Attendance record not found.", "danger")
+        
+    return redirect(url_for('admin_archive'))
+
+@app.route('/admin/attendance/delete/<int:log_id>', methods=['POST'])
+def admin_attendance_delete(log_id):
+    if not is_logged_in() or session.get('role') != 'admin':
+        flash("Access Denied.", "danger")
+        return redirect(url_for('login'))
+        
+    log = AttendanceLog.query.get(log_id)
+    if log:
+        # Delete associated photo files from disk
+        if log.image_record and log.image_record.image_path:
+            base_dir = app.config.get('BASE_DIR', os.path.abspath(os.path.dirname(__file__)))
+            image_path = os.path.join(base_dir, log.image_record.image_path.replace('/', os.sep))
+            
+            if os.path.exists(image_path):
+                try:
+                    os.remove(image_path)
+                except Exception as e:
+                    print(f"Error removing photo: {e}")
+                    
+        # Delete from DB
+        db.session.delete(log)
+        db.session.commit()
+        flash("Attendance record permanently deleted.", "success")
+    else:
+        flash("Attendance record not found.", "danger")
+        
+    redirect_target = request.args.get('redirect_to', 'admin_archive')
+    return redirect(url_for(redirect_target))
+
+@app.route('/admin/teachers/view/<int:profile_id>', methods=['GET', 'POST'])
+def admin_teacher_details(profile_id):
+    if not is_logged_in() or session.get('role') != 'admin':
+        flash("Access Denied.", "danger")
+        return redirect(url_for('login'))
+        
+    profile = TeacherProfile.query.get_or_404(profile_id)
+    departments = Department.query.order_by(Department.name).all()
+    classes = ClassSection.query.order_by(ClassSection.name).all()
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'edit_profile':
+            profile.name = request.form.get('name', '').strip()
+            profile.phone = request.form.get('phone', '').strip()
+            profile.employee_id = request.form.get('employee_id', '').strip()
+            profile.department_id = int(request.form.get('department_id')) if request.form.get('department_id') else None
+            
+            user = profile.user
+            if user:
+                user.email = request.form.get('email', '').strip()
+                
+            db.session.commit()
+            flash("Profile updated successfully.", "success")
+            
+        elif action == 'assign_slot':
+            class_id = int(request.form.get('class_id'))
+            subject = request.form.get('subject', '').strip()
+            classroom = request.form.get('classroom', '').strip()
+            day_of_week = int(request.form.get('day_of_week'))
+            period = request.form.get('period', '').strip()
+            start_time_str = request.form.get('start_time')
+            end_time_str = request.form.get('end_time')
+            
+            try:
+                start_time = datetime.datetime.strptime(start_time_str, '%H:%M').time()
+                end_time = datetime.datetime.strptime(end_time_str, '%H:%M').time()
+                
+                # Check for overlap
+                overlap = Timetable.query.filter(
+                    Timetable.teacher_profile_id == profile.id,
+                    Timetable.day_of_week == day_of_week,
+                    Timetable.start_time < end_time,
+                    Timetable.end_time > start_time
+                ).first()
+                
+                if overlap:
+                    flash(f"Error: This teacher has an overlapping class ({overlap.subject} in {overlap.classroom} at {overlap.period})", "danger")
+                else:
+                    new_slot = Timetable(
+                        teacher_profile_id=profile.id,
+                        class_id=class_id,
+                        subject=subject,
+                        classroom=classroom,
+                        day_of_week=day_of_week,
+                        period=period,
+                        start_time=start_time,
+                        end_time=end_time
+                    )
+                    db.session.add(new_slot)
+                    db.session.commit()
+                    flash("Class slot assigned successfully.", "success")
+            except Exception as e:
+                flash(f"Error assigning slot: {e}", "danger")
+                
+        elif action == 'delete_slot':
+            slot_id = int(request.form.get('slot_id'))
+            slot = Timetable.query.get(slot_id)
+            if slot and slot.teacher_profile_id == profile.id:
+                db.session.delete(slot)
+                db.session.commit()
+                flash("Timetable slot removed successfully.", "success")
+            else:
+                flash("Slot not found or unauthorized.", "danger")
+                
+        return redirect(url_for('admin_teacher_details', profile_id=profile.id))
+        
+    slots = Timetable.query.filter_by(teacher_profile_id=profile.id).order_by(Timetable.day_of_week, Timetable.start_time).all()
+    slots_dict = [s.to_dict() for s in slots]
+    
+    return render_template('admin_teacher_details.html',
+                           profile=profile,
+                           departments=departments,
+                           classes=classes,
+                           slots=slots_dict)
+
+@app.route('/admin/timetable/edit/<int:slot_id>', methods=['POST'])
+def admin_timetable_edit(slot_id):
+    if not is_logged_in() or session.get('role') != 'admin':
+        flash("Access Denied.", "danger")
+        return redirect(url_for('login'))
+        
+    slot = Timetable.query.get_or_404(slot_id)
+    
+    class_id = int(request.form.get('class_id'))
+    subject = request.form.get('subject', '').strip()
+    classroom = request.form.get('classroom', '').strip()
+    day_of_week = int(request.form.get('day_of_week'))
+    period = request.form.get('period', '').strip()
+    start_time_str = request.form.get('start_time')
+    end_time_str = request.form.get('end_time')
+    
+    try:
+        start_time = datetime.datetime.strptime(start_time_str, '%H:%M').time()
+        end_time = datetime.datetime.strptime(end_time_str, '%H:%M').time()
+        
+        # Check for overlap, excluding the slot itself
+        overlap = Timetable.query.filter(
+            Timetable.teacher_profile_id == slot.teacher_profile_id,
+            Timetable.day_of_week == day_of_week,
+            Timetable.id != slot.id,
+            Timetable.start_time < end_time,
+            Timetable.end_time > start_time
+        ).first()
+        
+        if overlap:
+            flash(f"Error: Overlapping class exists for this teacher ({overlap.subject} in {overlap.classroom} at {overlap.period})", "danger")
+        else:
+            slot.class_id = class_id
+            slot.subject = subject
+            slot.classroom = classroom
+            slot.day_of_week = day_of_week
+            slot.period = period
+            slot.start_time = start_time
+            slot.end_time = end_time
+            
+            db.session.commit()
+            flash("Timetable slot updated successfully.", "success")
+    except Exception as e:
+        flash(f"Error updating slot: {e}", "danger")
+        
+    referrer = request.referrer
+    if referrer and 'teachers/view' in referrer:
+        return redirect(url_for('admin_teacher_details', profile_id=slot.teacher_profile_id))
+    return redirect(url_for('admin_timetable'))
+
 @app.route('/admin/settings', methods=['GET', 'POST'])
 def admin_settings():
     if not is_logged_in() or session.get('role') != 'admin':
@@ -1191,7 +1436,60 @@ def admin_settings():
         flash("Campus Rules and coordinates updated successfully!", "success")
         return redirect(url_for('admin_settings'))
         
-    return render_template('admin_settings.html', settings=settings)
+    return render_template('admin_settings.html', settings=settings, current_user=get_current_user())
+
+@app.route('/admin/settings/profile', methods=['POST'])
+def admin_settings_profile():
+    if not is_logged_in() or session.get('role') != 'admin':
+        flash("Access Denied.", "danger")
+        return redirect(url_for('login'))
+        
+    user = get_current_user()
+    if not user:
+        flash("Admin user not found.", "danger")
+        return redirect(url_for('admin_settings'))
+        
+    username = request.form.get('username', '').strip()
+    email = request.form.get('email', '').strip()
+    new_password = request.form.get('new_password', '')
+    confirm_password = request.form.get('confirm_password', '')
+    
+    if not username:
+        flash("Username cannot be empty.", "danger")
+        return redirect(url_for('admin_settings'))
+        
+    if not email:
+        flash("Email cannot be empty.", "danger")
+        return redirect(url_for('admin_settings'))
+        
+    # Check if username is taken by another user
+    existing_user = User.query.filter(User.id != user.id, db.func.lower(User.username) == db.func.lower(username)).first()
+    if existing_user:
+        flash("Username already taken by another user.", "danger")
+        return redirect(url_for('admin_settings'))
+        
+    # Check if email is taken by another user
+    existing_email = User.query.filter(User.id != user.id, db.func.lower(User.email) == db.func.lower(email)).first()
+    if existing_email:
+        flash("Email already taken by another user.", "danger")
+        return redirect(url_for('admin_settings'))
+        
+    user.username = username
+    user.email = email
+    
+    if new_password:
+        if len(new_password) < 6:
+            flash("Password must be at least 6 characters long.", "danger")
+            return redirect(url_for('admin_settings'))
+        if new_password != confirm_password:
+            flash("Passwords do not match.", "danger")
+            return redirect(url_for('admin_settings'))
+        user.set_password(new_password)
+        
+    db.session.commit()
+    flash("Administrator credentials updated successfully!", "success")
+    return redirect(url_for('admin_settings'))
+
 
 @app.route('/admin/reports')
 def admin_reports():
@@ -1205,14 +1503,16 @@ def admin_reports():
     date_range = request.args.get('date_range', 'all')
     
     # Build filtered query for logs
-    log_query = AttendanceLog.query.join(TeacherProfile).outerjoin(Department, TeacherProfile.department_id == Department.id).join(Timetable, AttendanceLog.timetable_id == Timetable.id)
+    log_query = AttendanceLog.query.join(TeacherProfile).outerjoin(Department, TeacherProfile.department_id == Department.id).outerjoin(Timetable, AttendanceLog.timetable_id == Timetable.id)
     
     if teacher_id:
         log_query = log_query.filter(AttendanceLog.teacher_profile_id == int(teacher_id))
     if department_id:
         log_query = log_query.filter(TeacherProfile.department_id == int(department_id))
     if class_id:
-        log_query = log_query.filter(Timetable.class_id == int(class_id))
+        cls_obj = ClassSection.query.get(int(class_id))
+        class_name = cls_obj.name if cls_obj else ''
+        log_query = log_query.filter((Timetable.class_id == int(class_id)) | (AttendanceLog.class_name == class_name))
         
     if date_range and date_range != 'all':
         now = utils.get_local_now()
@@ -1271,9 +1571,11 @@ def admin_reports():
     teacher_stats = []
     
     for t in teachers_list:
-        t_logs_q = AttendanceLog.query.filter_by(teacher_profile_id=t.id).join(Timetable)
+        t_logs_q = AttendanceLog.query.filter_by(teacher_profile_id=t.id).outerjoin(Timetable, AttendanceLog.timetable_id == Timetable.id)
         if class_id:
-            t_logs_q = t_logs_q.filter(Timetable.class_id == int(class_id))
+            cls_obj = ClassSection.query.get(int(class_id))
+            class_name = cls_obj.name if cls_obj else ''
+            t_logs_q = t_logs_q.filter((Timetable.class_id == int(class_id)) | (AttendanceLog.class_name == class_name))
             
         if date_range and date_range != 'all':
             now = utils.get_local_now()
@@ -1355,7 +1657,7 @@ def admin_reports_download_pdf():
     date_range = request.args.get('date_range')
     
     desc_parts = []
-    log_query = AttendanceLog.query.join(TeacherProfile).outerjoin(Department, TeacherProfile.department_id == Department.id).join(Timetable, AttendanceLog.timetable_id == Timetable.id)
+    log_query = AttendanceLog.query.join(TeacherProfile).outerjoin(Department, TeacherProfile.department_id == Department.id).outerjoin(Timetable, AttendanceLog.timetable_id == Timetable.id)
     
     if teacher_id and teacher_id != '':
         log_query = log_query.filter(AttendanceLog.teacher_profile_id == int(teacher_id))
@@ -1374,8 +1676,9 @@ def admin_reports_download_pdf():
         desc_parts.append("Departments: All")
         
     if class_id and class_id != '':
-        log_query = log_query.filter(Timetable.class_id == int(class_id))
         cls = ClassSection.query.get(int(class_id))
+        class_name = cls.name if cls else ''
+        log_query = log_query.filter((Timetable.class_id == int(class_id)) | (AttendanceLog.class_name == class_name))
         if cls:
             desc_parts.append(f"Class: {cls.name}")
     else:
@@ -1406,6 +1709,73 @@ def admin_reports_download_pdf():
     logs_raw = log_query.order_by(AttendanceLog.timestamp.desc()).all()
     logs = [log.to_dict() for log in logs_raw]
     filters_desc = " | ".join(desc_parts)
+    
+    # Compile teacher stats for the report
+    teacher_query = TeacherProfile.query
+    if teacher_id and teacher_id != '':
+        teacher_query = teacher_query.filter(TeacherProfile.id == int(teacher_id))
+    if department_id and department_id != '':
+        teacher_query = teacher_query.filter(TeacherProfile.department_id == int(department_id))
+        
+    teachers_list = teacher_query.all()
+    teacher_stats = []
+    
+    for t in teachers_list:
+        t_logs_q = AttendanceLog.query.filter_by(teacher_profile_id=t.id).outerjoin(Timetable, AttendanceLog.timetable_id == Timetable.id)
+        if class_id and class_id != '':
+            cls_obj = ClassSection.query.get(int(class_id))
+            class_name = cls_obj.name if cls_obj else ''
+            t_logs_q = t_logs_q.filter((Timetable.class_id == int(class_id)) | (AttendanceLog.class_name == class_name))
+            
+        if date_range and date_range != '' and date_range != 'all':
+            now = utils.get_local_now()
+            if date_range == 'today':
+                start = datetime.datetime.combine(now.date(), datetime.time.min, tzinfo=now.tzinfo)
+                end = datetime.datetime.combine(now.date(), datetime.time.max, tzinfo=now.tzinfo)
+                t_logs_q = t_logs_q.filter(AttendanceLog.timestamp.between(start, end))
+            elif date_range == 'week':
+                start_of_week = now.date() - datetime.timedelta(days=now.weekday())
+                start = datetime.datetime.combine(start_of_week, datetime.time.min, tzinfo=now.tzinfo)
+                end = datetime.datetime.combine(start_of_week + datetime.timedelta(days=6), datetime.time.max, tzinfo=now.tzinfo)
+                t_logs_q = t_logs_q.filter(AttendanceLog.timestamp.between(start, end))
+            elif date_range == 'month':
+                start_of_month = now.date().replace(day=1)
+                next_month = start_of_month + datetime.timedelta(days=32)
+                end_of_month = next_month.replace(day=1) - datetime.timedelta(days=1)
+                start = datetime.datetime.combine(start_of_month, datetime.time.min, tzinfo=now.tzinfo)
+                end = datetime.datetime.combine(end_of_month, datetime.time.max, tzinfo=now.tzinfo)
+                t_logs_q = t_logs_q.filter(AttendanceLog.timestamp.between(start, end))
+                
+        marked_count = t_logs_q.count()
+        susp_count = t_logs_q.filter(AttendanceLog.status == 'Suspicious').count()
+        
+        t_slots_q = Timetable.query.filter_by(teacher_profile_id=t.id)
+        if class_id and class_id != '':
+            t_slots_q = t_slots_q.filter(Timetable.class_id == int(class_id))
+        slots_count = t_slots_q.count()
+        
+        rate = 100
+        if slots_count > 0:
+            if date_range == 'today':
+                opps = slots_count
+            elif date_range == 'week':
+                opps = slots_count * 5
+            elif date_range == 'month':
+                opps = slots_count * 20
+            else:
+                opps = slots_count * 20
+            rate = round((marked_count / opps) * 100)
+            rate = min(rate, 100)
+        else:
+            rate = 0
+            
+        teacher_stats.append({
+            'name': t.name,
+            'department': t.department.name if t.department else 'N/A',
+            'marked_count': marked_count,
+            'suspicious_count': susp_count,
+            'rate': rate
+        })
     
     from reportlab.lib.pagesizes import letter
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -1498,6 +1868,37 @@ def admin_reports_download_pdf():
     story.append(kpi_table)
     story.append(Spacer(1, 15))
     
+    story.append(Paragraph("Faculty Verification Statistics", h2_style))
+    
+    faculty_headers = ["Teacher Name", "Department", "Submissions Marked", "Suspicious Flags", "Attendance Rate / Status"]
+    faculty_table_data = [[Paragraph(h, th_style) for h in faculty_headers]]
+    
+    for stat in teacher_stats:
+        status_label = "Present" if stat['marked_count'] > 0 else "Absent"
+        status_color = '#10b981' if stat['marked_count'] > 0 else '#ef4444'
+        rate_para = Paragraph(f"{stat['rate']}% (<font color='{status_color}'><b>{status_label}</b></font>)", td_bold_style)
+        
+        faculty_table_data.append([
+            Paragraph(stat['name'], td_bold_style),
+            Paragraph(stat['department'], td_style),
+            Paragraph(str(stat['marked_count']), td_style),
+            Paragraph(str(stat['suspicious_count']), td_style),
+            rate_para
+        ])
+        
+    faculty_table = Table(faculty_table_data, colWidths=[120, 150, 100, 80, 90], repeatRows=1)
+    faculty_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e1b4b')),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f9fafb')]),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e5e7eb')),
+    ]))
+    story.append(faculty_table)
+    story.append(Spacer(1, 15))
+    
     story.append(Paragraph("Detailed Compliance Logs", h2_style))
     
     log_headers = ["Faculty", "Class", "Period", "Subject", "Date & Time", "Status", "Distance"]
@@ -1557,7 +1958,7 @@ def admin_reports_download_docx():
     date_range = request.args.get('date_range')
     
     desc_parts = []
-    log_query = AttendanceLog.query.join(TeacherProfile).outerjoin(Department, TeacherProfile.department_id == Department.id).join(Timetable, AttendanceLog.timetable_id == Timetable.id)
+    log_query = AttendanceLog.query.join(TeacherProfile).outerjoin(Department, TeacherProfile.department_id == Department.id).outerjoin(Timetable, AttendanceLog.timetable_id == Timetable.id)
     
     if teacher_id and teacher_id != '':
         log_query = log_query.filter(AttendanceLog.teacher_profile_id == int(teacher_id))
@@ -1576,8 +1977,9 @@ def admin_reports_download_docx():
         desc_parts.append("Departments: All")
         
     if class_id and class_id != '':
-        log_query = log_query.filter(Timetable.class_id == int(class_id))
         cls = ClassSection.query.get(int(class_id))
+        class_name = cls.name if cls else ''
+        log_query = log_query.filter((Timetable.class_id == int(class_id)) | (AttendanceLog.class_name == class_name))
         if cls:
             desc_parts.append(f"Class: {cls.name}")
     else:
@@ -1608,6 +2010,73 @@ def admin_reports_download_docx():
     logs_raw = log_query.order_by(AttendanceLog.timestamp.desc()).all()
     logs = [log.to_dict() for log in logs_raw]
     filters_desc = " | ".join(desc_parts)
+    
+    # Compile teacher stats for the report
+    teacher_query = TeacherProfile.query
+    if teacher_id and teacher_id != '':
+        teacher_query = teacher_query.filter(TeacherProfile.id == int(teacher_id))
+    if department_id and department_id != '':
+        teacher_query = teacher_query.filter(TeacherProfile.department_id == int(department_id))
+        
+    teachers_list = teacher_query.all()
+    teacher_stats = []
+    
+    for t in teachers_list:
+        t_logs_q = AttendanceLog.query.filter_by(teacher_profile_id=t.id).outerjoin(Timetable, AttendanceLog.timetable_id == Timetable.id)
+        if class_id and class_id != '':
+            cls_obj = ClassSection.query.get(int(class_id))
+            class_name = cls_obj.name if cls_obj else ''
+            t_logs_q = t_logs_q.filter((Timetable.class_id == int(class_id)) | (AttendanceLog.class_name == class_name))
+            
+        if date_range and date_range != '' and date_range != 'all':
+            now = utils.get_local_now()
+            if date_range == 'today':
+                start = datetime.datetime.combine(now.date(), datetime.time.min, tzinfo=now.tzinfo)
+                end = datetime.datetime.combine(now.date(), datetime.time.max, tzinfo=now.tzinfo)
+                t_logs_q = t_logs_q.filter(AttendanceLog.timestamp.between(start, end))
+            elif date_range == 'week':
+                start_of_week = now.date() - datetime.timedelta(days=now.weekday())
+                start = datetime.datetime.combine(start_of_week, datetime.time.min, tzinfo=now.tzinfo)
+                end = datetime.datetime.combine(start_of_week + datetime.timedelta(days=6), datetime.time.max, tzinfo=now.tzinfo)
+                t_logs_q = t_logs_q.filter(AttendanceLog.timestamp.between(start, end))
+            elif date_range == 'month':
+                start_of_month = now.date().replace(day=1)
+                next_month = start_of_month + datetime.timedelta(days=32)
+                end_of_month = next_month.replace(day=1) - datetime.timedelta(days=1)
+                start = datetime.datetime.combine(start_of_month, datetime.time.min, tzinfo=now.tzinfo)
+                end = datetime.datetime.combine(end_of_month, datetime.time.max, tzinfo=now.tzinfo)
+                t_logs_q = t_logs_q.filter(AttendanceLog.timestamp.between(start, end))
+                
+        marked_count = t_logs_q.count()
+        susp_count = t_logs_q.filter(AttendanceLog.status == 'Suspicious').count()
+        
+        t_slots_q = Timetable.query.filter_by(teacher_profile_id=t.id)
+        if class_id and class_id != '':
+            t_slots_q = t_slots_q.filter(Timetable.class_id == int(class_id))
+        slots_count = t_slots_q.count()
+        
+        rate = 100
+        if slots_count > 0:
+            if date_range == 'today':
+                opps = slots_count
+            elif date_range == 'week':
+                opps = slots_count * 5
+            elif date_range == 'month':
+                opps = slots_count * 20
+            else:
+                opps = slots_count * 20
+            rate = round((marked_count / opps) * 100)
+            rate = min(rate, 100)
+        else:
+            rate = 0
+            
+        teacher_stats.append({
+            'name': t.name,
+            'department': t.department.name if t.department else 'N/A',
+            'marked_count': marked_count,
+            'suspicious_count': susp_count,
+            'rate': rate
+        })
     
     import docx
     from docx.shared import Inches, Pt, RGBColor
@@ -1673,6 +2142,40 @@ def admin_reports_download_docx():
         for col_idx, text in enumerate(data):
             kpi_table.rows[row_idx + 1].cells[col_idx].text = text
             
+    doc.add_paragraph()
+    
+    h_fac = doc.add_paragraph()
+    h_fac_run = h_fac.add_run("Faculty Verification Statistics")
+    h_fac_run.font.name = 'Arial'
+    h_fac_run.font.size = Pt(12)
+    h_fac_run.font.bold = True
+    h_fac_run.font.color.rgb = RGBColor(30, 27, 75)
+    
+    faculty_headers = ["Teacher Name", "Department", "Submissions Marked", "Suspicious Flags", "Attendance Rate / Status"]
+    faculty_table = doc.add_table(rows=1, cols=len(faculty_headers))
+    faculty_table.style = 'Table Grid'
+    
+    hdr_cells_f = faculty_table.rows[0].cells
+    for i, t_title in enumerate(faculty_headers):
+        hdr_cells_f[i].text = t_title
+        run = hdr_cells_f[i].paragraphs[0].runs[0]
+        run.font.bold = True
+        run.font.color.rgb = RGBColor(255, 255, 255)
+        shading_elm = parse_xml(r'<w:shd {} w:fill="1E1B4B"/>'.format(nsdecls('w')))
+        hdr_cells_f[i]._tc.get_or_add_tcPr().append(shading_elm)
+        
+    for stat in teacher_stats:
+        row_cells = faculty_table.add_row().cells
+        row_cells[0].text = stat['name']
+        row_cells[0].paragraphs[0].runs[0].font.bold = True
+        row_cells[1].text = stat['department']
+        row_cells[2].text = str(stat['marked_count'])
+        row_cells[3].text = str(stat['suspicious_count'])
+        
+        status_label = "Present" if stat['marked_count'] > 0 else "Absent"
+        row_cells[4].text = f"{stat['rate']}% ({status_label})"
+        row_cells[4].paragraphs[0].runs[0].font.bold = True
+        
     doc.add_paragraph()
     
     h2 = doc.add_paragraph()

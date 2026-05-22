@@ -88,6 +88,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Submit Attendance Trigger
     const attendanceForm = document.getElementById('attendanceMarkForm');
+    const confirmModal = document.getElementById('confirmSubmitModal');
+    const btnConfirmSubmit = document.getElementById('btnConfirmSubmit');
+    const btnRetakePhoto = document.getElementById('btnRetakePhoto');
+    const btnCancelSubmit = document.getElementById('btnCancelSubmit');
+    const modalPreviewImg = document.getElementById('modalCapturePreview');
+
     if (attendanceForm) {
         attendanceForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -101,9 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
-            submitBtn.disabled = true;
-            submitBtn.innerText = "Estimating students and submitting...";
-            
             // Draw current video frame to hidden canvas
             const ctx = canvas.getContext('2d');
             canvas.width = video.videoWidth || 640;
@@ -113,17 +116,40 @@ document.addEventListener('DOMContentLoaded', () => {
             // Extract Base64 JPEG data
             const base64Image = canvas.toDataURL('image/jpeg', 0.75);
             
-            // Stop camera stream to release device hardware
-            stopCamera();
+            // Update preview image in modal
+            if (modalPreviewImg) {
+                modalPreviewImg.src = base64Image;
+            }
             
-            // Gather Payload
+            // Pause the video stream to freeze preview
+            video.pause();
+            
+            // Open confirmation modal
+            if (confirmModal) {
+                confirmModal.classList.add('open');
+            }
+        });
+    }
+
+    if (btnConfirmSubmit) {
+        btnConfirmSubmit.addEventListener('click', async () => {
+            btnConfirmSubmit.disabled = true;
+            btnConfirmSubmit.innerText = "Submitting...";
+            if (btnRetakePhoto) btnRetakePhoto.disabled = true;
+            if (btnCancelSubmit) btnCancelSubmit.disabled = true;
+            
             const timetableId = document.getElementById('timetableId').value;
+            const base64Image = canvas.toDataURL('image/jpeg', 0.75);
+            
             const payload = {
                 image: base64Image,
                 latitude: userLatitude,
                 longitude: userLongitude,
                 timetable_id: timetableId
             };
+            
+            // Stop camera stream to release device hardware
+            stopCamera();
             
             try {
                 const response = await fetch('/api/submit_attendance', {
@@ -138,20 +164,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (response.ok) {
                     showAlert(data.message, "success");
+                    if (confirmModal) confirmModal.classList.remove('open');
                     // Wait 2 seconds to let the user see the success alert and then redirect
                     setTimeout(() => {
                         window.location.href = '/teacher/dashboard';
                     }, 2000);
                 } else {
                     showAlert(data.message + (data.reason ? ` Reason: ${data.reason}` : ''), "danger");
-                    // Reset UI so they can try again
+                    if (confirmModal) confirmModal.classList.remove('open');
                     resetMarkingForm();
                 }
             } catch (err) {
                 console.error("Submission failed:", err);
                 showAlert("Network connection error. Failed to submit attendance.", "danger");
+                if (confirmModal) confirmModal.classList.remove('open');
                 resetMarkingForm();
+            } finally {
+                btnConfirmSubmit.disabled = false;
+                btnConfirmSubmit.innerText = "Submit Attendance 🚀";
+                if (btnRetakePhoto) btnRetakePhoto.disabled = false;
+                if (btnCancelSubmit) btnCancelSubmit.disabled = false;
             }
+        });
+    }
+
+    if (btnRetakePhoto) {
+        btnRetakePhoto.addEventListener('click', () => {
+            // Close modal
+            if (confirmModal) {
+                confirmModal.classList.remove('open');
+            }
+            // Resume live video stream
+            if (video) {
+                video.play().catch(err => console.error("Error resuming camera stream:", err));
+            }
+        });
+    }
+
+    if (btnCancelSubmit) {
+        btnCancelSubmit.addEventListener('click', () => {
+            // Close modal
+            if (confirmModal) {
+                confirmModal.classList.remove('open');
+            }
+            // Stop camera and reset the marking form
+            stopCamera();
+            resetMarkingForm();
         });
     }
 });

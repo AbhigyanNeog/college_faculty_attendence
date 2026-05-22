@@ -8,9 +8,10 @@
     <p style="color: var(--color-text-muted);">Adjust Geofencing coordinates, boundary limits, and active attendance time slots.</p>
 </div>
 
-<div class="login-wrapper" style="justify-content: flex-start; align-items: stretch; padding: 0;">
-    <div class="glass-card" style="padding: 24px; max-width: 700px; width: 100%;">
-        <h3 style="font-family: var(--font-title); font-size: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; align-items: start; max-width: 1200px;">
+    <!-- Campus Location & Boundary Rules Card -->
+    <div class="glass-card" style="padding: 24px; width: 100%;">
+        <h3 style="font-family: var(--font-title); font-size: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px; color: var(--color-primary);">
             ⚙️ Campus Location & Verification Rules
         </h3>
         
@@ -52,6 +53,43 @@
 
             <button class="btn btn-primary" type="submit" style="padding: 14px; font-size: 15px; width: 100%;">
                 Save Configuration Rules 💾
+            </button>
+        </form>
+    </div>
+
+    <!-- Administrator Profile Settings Card -->
+    <div class="glass-card" style="padding: 24px; width: 100%;">
+        <h3 style="font-family: var(--font-title); font-size: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px; color: var(--color-success);">
+            👤 Administrator Account Settings
+        </h3>
+        
+        <form action="{{ url_for('admin_settings_profile') }}" method="POST">
+            <div class="form-group">
+                <label class="form-label" for="admin_username">Admin Username</label>
+                <input class="form-control" type="text" id="admin_username" name="username" value="{{ current_user.username if current_user else 'admin' }}" required>
+            </div>
+            
+            <div class="form-group" style="margin-top: 15px;">
+                <label class="form-label" for="admin_email">Admin Email Address</label>
+                <input class="form-control" type="email" id="admin_email" name="email" value="{{ current_user.email if current_user else 'admin@college.edu' }}" required>
+            </div>
+
+            <div style="border-top: 1px dashed var(--border-card); margin-top: 25px; padding-top: 15px;">
+                <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 15px; color: var(--color-text);">🔐 Change Administrator Password</h4>
+                
+                <div class="form-group">
+                    <label class="form-label" for="new_password">New Password</label>
+                    <input class="form-control" type="password" id="new_password" name="new_password" placeholder="Leave blank to keep current password">
+                </div>
+                
+                <div class="form-group" style="margin-top: 15px; margin-bottom: 25px;">
+                    <label class="form-label" for="confirm_password">Confirm New Password</label>
+                    <input class="form-control" type="password" id="confirm_password" name="confirm_password" placeholder="Confirm your new password">
+                </div>
+            </div>
+
+            <button class="btn btn-success" type="submit" style="padding: 14px; font-size: 15px; width: 100%; background-color: var(--color-success); border-color: var(--color-success); color: white; border-radius: var(--border-radius); font-weight: 700; cursor: pointer;">
+                Update Admin Credentials 💾
             </button>
         </form>
     </div>

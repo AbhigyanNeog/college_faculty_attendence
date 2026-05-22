@@ -130,6 +130,25 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Modal: Confirm Submission -->
+<div class="modal-overlay" id="confirmSubmitModal">
+    <div class="modal-content" style="max-width: 480px; text-align: center; padding: 24px; background: rgba(25, 25, 35, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);">
+        <h3 style="font-family: var(--font-title); font-size: 20px; font-weight: 800; margin-bottom: 12px;">Confirm Attendance Photo 📸</h3>
+        <p style="color: var(--color-text-muted); font-size: 14px; margin-bottom: 20px;">Please review the captured photo before final submission. Ensure the classroom and present students are clearly visible.</p>
+        
+        <!-- Preview container -->
+        <div style="width: 100%; aspect-ratio: 4/3; background: #000; border-radius: var(--border-radius-md); overflow: hidden; border: 1px solid var(--border-card); margin-bottom: 24px; position: relative;">
+            <img id="modalCapturePreview" style="width: 100%; height: 100%; object-fit: contain; display: block;" src="" alt="Captured Preview">
+        </div>
+        
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            <button type="button" id="btnConfirmSubmit" class="btn btn-success" style="padding: 12px 20px; font-size: 14px; font-weight: bold; flex: 1;">Submit Attendance 🚀</button>
+            <button type="button" id="btnRetakePhoto" class="btn btn-secondary" style="padding: 12px 20px; font-size: 14px; font-weight: bold; flex: 1; background: var(--color-warning); color: #000; border-color: var(--color-warning);">Retake Photo 🔄</button>
+            <button type="button" id="btnCancelSubmit" class="btn btn-secondary" style="padding: 12px 20px; font-size: 14px; font-weight: bold; flex: 1; background: rgba(255,255,255,0.05); color: var(--color-text); border-color: var(--border-card);">Cancel ❌</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
