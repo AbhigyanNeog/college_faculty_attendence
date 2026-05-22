@@ -12,3 +12,4 @@ pytz
 pdfplumber
 pandas
 openpyxl
+pytesseract
