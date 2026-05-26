@@ -109,6 +109,10 @@ def register():
         confirm_password = request.form.get('confirm_password')
         
         # Validation checks
+        if phone and not phone.isdigit():
+            flash("Phone number must contain only digits.", "danger")
+            return render_template('register.html', departments=departments)
+            
         if password != confirm_password:
             flash("Passwords do not match.", "danger")
             return render_template('register.html', departments=departments)
@@ -555,64 +559,71 @@ def admin_teachers():
             password = request.form.get('password')
             
             # Checks
-            existing_user = User.query.filter(
-                (db.func.lower(User.username) == db.func.lower(username)) |
-                (db.func.lower(User.email) == db.func.lower(email))
-            ).first()
-            if existing_user:
-                flash("Username or Email already registered.", "danger")
+            if phone and not phone.isdigit():
+                flash("Phone number must contain only digits.", "danger")
             else:
-                existing_profile = TeacherProfile.query.filter_by(employee_id=employee_id).first()
-                if existing_profile:
-                    flash("Employee ID already exists.", "danger")
+                existing_user = User.query.filter(
+                    (db.func.lower(User.username) == db.func.lower(username)) |
+                    (db.func.lower(User.email) == db.func.lower(email))
+                ).first()
+                if existing_user:
+                    flash("Username or Email already registered.", "danger")
                 else:
-                    # Create user
-                    needs_pw = not bool(password)
-                    new_user = User(
-                        username=username,
-                        email=email,
-                        role_id=teacher_role.id,
-                        is_active=not needs_pw, # If no password, inactive until setup
-                        needs_password_setup=needs_pw
-                    )
-                    if password:
-                        new_user.set_password(password)
-                    db.session.add(new_user)
-                    db.session.commit()
+                    existing_profile = TeacherProfile.query.filter_by(employee_id=employee_id).first()
+                    if existing_profile:
+                        flash("Employee ID already exists.", "danger")
+                    else:
+                        # Create user
+                        needs_pw = not bool(password)
+                        new_user = User(
+                            username=username,
+                            email=email,
+                            role_id=teacher_role.id,
+                            is_active=not needs_pw, # If no password, inactive until setup
+                            needs_password_setup=needs_pw
+                        )
+                        if password:
+                            new_user.set_password(password)
+                        db.session.add(new_user)
+                        db.session.commit()
+                        
+                        # Create profile
+                        new_profile = TeacherProfile(
+                            user_id=new_user.id,
+                            employee_id=employee_id,
+                            name=name,
+                            phone=phone,
+                            department_id=int(department_id) if department_id else None,
+                            approval_status='Approved' # Admin added profiles are auto-approved
+                        )
+                        db.session.add(new_profile)
+                        db.session.commit()
+                        flash(f"Faculty profile created successfully! Password Setup required: {needs_pw}", "success")
                     
-                    # Create profile
-                    new_profile = TeacherProfile(
-                        user_id=new_user.id,
-                        employee_id=employee_id,
-                        name=name,
-                        phone=phone,
-                        department_id=int(department_id) if department_id else None,
-                        approval_status='Approved' # Admin added profiles are auto-approved
-                    )
-                    db.session.add(new_profile)
-                    db.session.commit()
-                    flash(f"Faculty profile created successfully! Password Setup required: {needs_pw}", "success")
-                
         elif action == 'edit':
             profile_id = int(request.form.get('profile_id'))
             profile = TeacherProfile.query.get(profile_id)
             if profile:
-                profile.name = request.form.get('name', '').strip()
-                profile.phone = request.form.get('phone', '').strip()
-                profile.department_id = int(request.form.get('department_id')) if request.form.get('department_id') else None
-                
-                user = profile.user
-                if user:
-                    user.email = request.form.get('email', '').strip()
+                phone = request.form.get('phone', '').strip()
+                if phone and not phone.isdigit():
+                    flash("Phone number must contain only digits.", "danger")
+                else:
+                    profile.name = request.form.get('name', '').strip()
+                    profile.phone = phone
+                    profile.department_id = int(request.form.get('department_id')) if request.form.get('department_id') else None
                     
-                    new_pwd = request.form.get('password')
-                    if new_pwd:
-                        user.set_password(new_pwd)
-                        user.needs_password_setup = False
-                        user.is_active = True
+                    user = profile.user
+                    if user:
+                        user.email = request.form.get('email', '').strip()
                         
-                db.session.commit()
-                flash("Faculty profile updated successfully!", "success")
+                        new_pwd = request.form.get('password')
+                        if new_pwd:
+                            user.set_password(new_pwd)
+                            user.needs_password_setup = False
+                            user.is_active = True
+                            
+                    db.session.commit()
+                    flash("Faculty profile updated successfully!", "success")
                 
         elif action == 'toggle':
             profile_id = int(request.form.get('profile_id'))
@@ -1282,17 +1293,21 @@ def admin_teacher_details(profile_id):
         action = request.form.get('action')
         
         if action == 'edit_profile':
-            profile.name = request.form.get('name', '').strip()
-            profile.phone = request.form.get('phone', '').strip()
-            profile.employee_id = request.form.get('employee_id', '').strip()
-            profile.department_id = int(request.form.get('department_id')) if request.form.get('department_id') else None
-            
-            user = profile.user
-            if user:
-                user.email = request.form.get('email', '').strip()
+            phone = request.form.get('phone', '').strip()
+            if phone and not phone.isdigit():
+                flash("Phone number must contain only digits.", "danger")
+            else:
+                profile.name = request.form.get('name', '').strip()
+                profile.phone = phone
+                profile.employee_id = request.form.get('employee_id', '').strip()
+                profile.department_id = int(request.form.get('department_id')) if request.form.get('department_id') else None
                 
-            db.session.commit()
-            flash("Profile updated successfully.", "success")
+                user = profile.user
+                if user:
+                    user.email = request.form.get('email', '').strip()
+                    
+                db.session.commit()
+                flash("Profile updated successfully.", "success")
             
         elif action == 'assign_slot':
             class_id = int(request.form.get('class_id'))

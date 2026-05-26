@@ -8,7 +8,7 @@
     <p style="color: var(--color-text-muted);">Adjust Geofencing coordinates, boundary limits, and active attendance time slots.</p>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; align-items: start; max-width: 1200px;">
+<div class="settings-outer-grid">
     <!-- Campus Location & Boundary Rules Card -->
     <div class="glass-card" style="padding: 24px; width: 100%;">
         <h3 style="font-family: var(--font-title); font-size: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--border-card); padding-bottom: 10px; color: var(--color-primary);">
@@ -21,7 +21,7 @@
                 <input class="form-control" type="text" id="campus_name" name="campus_name" value="{{ settings.campus_name if settings else 'Main Campus' }}" required>
             </div>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+            <div class="form-grid-2" style="margin-top: 15px;">
                 <div class="form-group">
                     <label class="form-label" for="latitude">Center Latitude *</label>
                     <input class="form-control" type="number" step="any" id="latitude" name="latitude" value="{{ settings.latitude if settings else 27.475807921264003 }}" required>
@@ -39,7 +39,7 @@
                 <small style="color: var(--color-text-muted); font-size: 11px;">Teachers must be within this distance from the center coordinate to mark attendance.</small>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; margin-bottom: 30px;">
+            <div class="form-grid-2" style="margin-top: 20px; margin-bottom: 30px;">
                 <div class="form-group">
                     <label class="form-label" for="start_window_before_mins">Start Window (Mins before class) *</label>
                     <input class="form-control" type="number" id="start_window_before_mins" name="start_window_before_mins" value="{{ settings.start_window_before_mins if settings else 5 }}" required>

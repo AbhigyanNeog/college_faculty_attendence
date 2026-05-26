@@ -10,7 +10,7 @@
 
 <!-- Filters Panel -->
 <div class="glass-card" style="padding: 16px; margin-bottom: 24px;">
-    <form method="GET" action="{{ url_for('admin_attendance') }}" style="display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 14px; align-items: end;">
+    <form method="GET" action="{{ url_for('admin_attendance') }}" class="responsive-filter-grid">
         <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" style="font-size: 11px;">Faculty Member</label>
             <select class="form-control" name="profile_id">

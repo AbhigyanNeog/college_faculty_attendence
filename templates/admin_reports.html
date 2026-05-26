@@ -37,7 +37,7 @@
 <!-- Filter Section -->
 <div class="glass-card filter-section" style="padding: 20px; margin-bottom: 24px;">
     <h3 style="font-family: var(--font-title); font-size: 15px; margin-bottom: 12px; font-weight: 700;">🔍 Filter Reports</h3>
-    <form action="{{ url_for('admin_reports') }}" method="GET" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: flex-end;">
+    <form action="{{ url_for('admin_reports') }}" method="GET" class="responsive-filter-grid">
         <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" for="teacher_id" style="font-size: 12px;">Teacher</label>
             <select class="form-control" id="teacher_id" name="teacher_id" style="padding: 8px 12px; font-size: 13px; background-color: var(--bg-card); color: var(--color-text); border: 1px solid var(--border-card); border-radius: 6px;">

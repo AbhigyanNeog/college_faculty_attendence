@@ -11,7 +11,7 @@
         </div>
         
         <form action="{{ url_for('register') }}" method="POST">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="form-grid-2">
                 <div class="form-group">
                     <label class="form-label" for="employee_id">Employee ID *</label>
                     <input class="form-control" type="text" id="employee_id" name="employee_id" placeholder="e.g. EMP102" required>
@@ -23,7 +23,7 @@
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+            <div class="form-grid-2" style="margin-top: 15px;">
                 <div class="form-group">
                     <label class="form-label" for="email">Official Email *</label>
                     <input class="form-control" type="email" id="email" name="email" placeholder="name@college.edu" required>
@@ -50,7 +50,7 @@
                 <input class="form-control" type="text" id="username" name="username" placeholder="e.g. rsharma" required autocomplete="username">
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; margin-bottom: 24px;">
+            <div class="form-grid-2" style="margin-top: 15px; margin-bottom: 24px;">
                 <div class="form-group">
                     <label class="form-label" for="password">Password *</label>
                     <input class="form-control" type="password" id="password" name="password" placeholder="••••••••" required autocomplete="new-password">

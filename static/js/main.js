@@ -39,6 +39,54 @@ document.addEventListener('DOMContentLoaded', () => {
         updateClock();
         setInterval(updateClock, 1000);
     }
+
+    // 1c. Password Toggle Eye Injection
+    const passwordInputs = document.querySelectorAll('input[type="password"]');
+    passwordInputs.forEach(input => {
+        // Create wrapper
+        const wrapper = document.createElement('div');
+        wrapper.className = 'password-input-wrapper';
+        
+        // Insert wrapper before input
+        input.parentNode.insertBefore(wrapper, input);
+        
+        // Move input inside wrapper
+        wrapper.appendChild(input);
+        
+        // Create toggle button
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'password-toggle-btn';
+        toggleBtn.setAttribute('tabindex', '-1');
+        toggleBtn.setAttribute('aria-label', 'Toggle password visibility');
+        toggleBtn.innerHTML = '👁️';
+        
+        wrapper.appendChild(toggleBtn);
+        
+        toggleBtn.addEventListener('click', () => {
+            if (input.type === 'password') {
+                input.type = 'text';
+                toggleBtn.innerHTML = '🙈';
+                toggleBtn.setAttribute('aria-label', 'Hide password');
+            } else {
+                input.type = 'password';
+                toggleBtn.innerHTML = '👁️';
+                toggleBtn.setAttribute('aria-label', 'Show password');
+            }
+        });
+    });
+
+    // 1d. Phone Input Validation (restrict to digits only)
+    const phoneInputs = document.querySelectorAll('input#phone, input[name="phone"], input[type="tel"]');
+    phoneInputs.forEach(input => {
+        try {
+            input.type = 'tel';
+        } catch(e) {}
+        
+        input.addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+    });
 });
 
 function updateThemeIcon(btn, theme) {

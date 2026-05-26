@@ -54,7 +54,7 @@
         {% if active_class_to_mark %}
             <div class="glass-card" style="margin-bottom: 0;">
                 <h3 style="font-family: var(--font-title); font-size: 18px; margin-bottom: 12px;"> Mark Verification: <span style="color: var(--color-primary);">{{ active_class_to_mark.subject }}</span></h3>
-                <div style="font-size: 13px; color: var(--color-text-muted); display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; background: rgba(0,0,0,0.02); padding: 12px; border-radius: var(--border-radius-md); border: 1px solid var(--border-card);">
+                <div class="info-grid-3" style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 20px; background: rgba(0,0,0,0.02); padding: 12px; border-radius: var(--border-radius-md); border: 1px solid var(--border-card);">
                     <div>🏛️ <strong>Classroom:</strong><br>{{ active_class_to_mark.classroom }}</div>
                     <div>⏰ <strong>Class Time:</strong><br>{{ active_class_to_mark.start_time.strftime('%I:%M %p') }}</div>
                     <div>🔔 <strong>Allow Window:</strong><br>{{ window_start_str }} - {{ window_end_str }}</div>

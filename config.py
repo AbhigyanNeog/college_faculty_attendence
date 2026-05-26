@@ -8,8 +8,15 @@ class Config:
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     
     # SQLAlchemy configuration
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(BASE_DIR, "attendance.db")}')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(BASE_DIR, "attendance.db")}?timeout=30')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    from sqlalchemy.pool import NullPool
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'poolclass': NullPool,
+        'connect_args': {
+            'timeout': 30
+        }
+    }
     
     # Timezone settings (standardized to India Standard Time)
     TIMEZONE = 'Asia/Kolkata'
